@@ -2,16 +2,19 @@ package com.ej1.app.product.domain.service;
 
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.exception.DuplicateSkuException;
+import com.ej1.app.product.domain.exception.InvalidProductQueryException;
 import com.ej1.app.product.domain.exception.ProductNotFoundException;
 import com.ej1.app.product.domain.port.CreateProductCommand;
 import com.ej1.app.product.domain.port.ProductMapper;
+import com.ej1.app.product.domain.port.ProductPage;
 import com.ej1.app.product.domain.port.ProductRepository;
+import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.Set;
 
 /**
  * Domain service (use case) for the product aggregate.
@@ -21,13 +24,19 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ProductService {
 
+    /**
+     * Field names {@code search} accepts for {@code sortBy}. Lives here, not on
+     * {@link ProductSearchCriteria} or the shared {@code PagingRequest} DTO, because it's
+     * knowledge about the {@code Product} aggregate specifically — a future entity's
+     * service would declare its own set. Sorting by an unlisted field is rejected as a
+     * business rule (422), the same way {@code minPrice > maxPrice} is below, rather than
+     * as a single-field format constraint — see {@code PagingRequest.sortBy}'s javadoc.
+     */
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+            "id", "name", "price", "stock", "sku", "category", "brand", "createdAt", "updatedAt");
+
     private final ProductRepository repository;
     private final ProductMapper mapper;
-
-    @Transactional(readOnly = true)
-    public List<Product> findAll() {
-        return repository.findAll();
-    }
 
     @Transactional(readOnly = true)
     public Product findById(Long id) {
@@ -61,6 +70,30 @@ public class ProductService {
 
         Product updated = mapper.applyUpdate(existing, cmd);
         return repository.save(updated);
+    }
+
+    /**
+     * Filtered, sorted, paginated product search. Validates business rules that a
+     * single-field Bean Validation constraint cannot express (see
+     * {@link InvalidProductQueryException}) — {@code page}/{@code size} bounds and
+     * {@code sortDirection} being {@code ASC}/{@code DESC} are already guaranteed
+     * well-formed by the REST layer's Bean Validation; {@code sortBy} naming an actual
+     * sortable field is Product-specific business knowledge, so it's checked here instead.
+     */
+    @Transactional(readOnly = true)
+    public ProductPage search(ProductSearchCriteria criteria) {
+        if (criteria.minPrice() != null && criteria.maxPrice() != null
+                && criteria.minPrice().compareTo(criteria.maxPrice()) > 0) {
+            throw new InvalidProductQueryException(
+                    "minPrice (%s) must not be greater than maxPrice (%s)"
+                            .formatted(criteria.minPrice(), criteria.maxPrice()));
+        }
+        if (!ALLOWED_SORT_FIELDS.contains(criteria.sortBy())) {
+            throw new InvalidProductQueryException(
+                    "sortBy '%s' is not sortable. Allowed values: %s"
+                            .formatted(criteria.sortBy(), ALLOWED_SORT_FIELDS));
+        }
+        return repository.search(criteria);
     }
 
     @Transactional

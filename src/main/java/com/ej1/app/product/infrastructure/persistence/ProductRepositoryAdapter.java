@@ -1,11 +1,15 @@
 package com.ej1.app.product.infrastructure.persistence;
 
 import com.ej1.app.product.domain.Product;
+import com.ej1.app.product.domain.port.ProductPage;
 import com.ej1.app.product.domain.port.ProductRepository;
+import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -14,11 +18,6 @@ public class ProductRepositoryAdapter implements ProductRepository {
 
     private final ProductJpaRepository jpa;
     private final ProductEntityMapper mapper;
-
-    @Override
-    public List<Product> findAll() {
-        return jpa.findAll().stream().map(mapper::toDomain).toList();
-    }
 
     @Override
     public Optional<Product> findById(Long id) {
@@ -48,5 +47,18 @@ public class ProductRepositoryAdapter implements ProductRepository {
     @Override
     public void deleteById(Long id) {
         jpa.deleteById(id);
+    }
+
+    @Override
+    public ProductPage search(ProductSearchCriteria criteria) {
+        Sort sort = Sort.by(Sort.Direction.fromString(criteria.sortDirection()), criteria.sortBy());
+        Pageable pageable = PageRequest.of(criteria.page(), criteria.size(), sort);
+        var result = jpa.findAll(ProductSpecifications.from(criteria), pageable);
+        return new ProductPage(
+                result.getContent().stream().map(mapper::toDomain).toList(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages());
     }
 }

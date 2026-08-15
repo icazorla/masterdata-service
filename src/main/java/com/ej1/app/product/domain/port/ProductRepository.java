@@ -2,7 +2,6 @@ package com.ej1.app.product.domain.port;
 
 import com.ej1.app.product.domain.Product;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -10,8 +9,6 @@ import java.util.Optional;
  * from the outside world; infrastructure adapters implement this contract.
  */
 public interface ProductRepository {
-
-    List<Product> findAll();
 
     Optional<Product> findById(Long id);
 
@@ -24,4 +21,10 @@ public interface ProductRepository {
     Product save(Product product);
 
     void deleteById(Long id);
+
+    /**
+     * Runs a filtered, sorted, paginated search. See {@link ProductSearchCriteria}
+     * for the query shape.
+     */
+    ProductPage search(ProductSearchCriteria criteria);
 }

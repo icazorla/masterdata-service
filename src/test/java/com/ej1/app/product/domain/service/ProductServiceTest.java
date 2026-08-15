@@ -2,10 +2,13 @@ package com.ej1.app.product.domain.service;
 
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.exception.DuplicateSkuException;
+import com.ej1.app.product.domain.exception.InvalidProductQueryException;
 import com.ej1.app.product.domain.exception.ProductNotFoundException;
 import com.ej1.app.product.domain.port.CreateProductCommand;
 import com.ej1.app.product.domain.port.ProductMapper;
+import com.ej1.app.product.domain.port.ProductPage;
 import com.ej1.app.product.domain.port.ProductRepository;
+import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
 import com.ej1.app.product.infrastructure.persistence.ProductMapperAdapter;
 import org.junit.jupiter.api.BeforeEach;
@@ -88,27 +91,6 @@ class ProductServiceTest {
                 null,
                 null,
                 true);
-    }
-
-    @Test
-    @DisplayName("findAll devuelve todos los productos")
-    void findAll_returnsAll() {
-        when(repository.findAll()).thenReturn(List.of(sample));
-
-        List<Product> result = service.findAll();
-
-        assertThat(result).containsExactly(sample);
-        verify(repository).findAll();
-    }
-
-    @Test
-    @DisplayName("findAll devuelve lista vacía cuando no hay productos")
-    void findAll_empty() {
-        when(repository.findAll()).thenReturn(List.of());
-
-        List<Product> result = service.findAll();
-
-        assertThat(result).isEmpty();
     }
 
     @Test
@@ -255,6 +237,62 @@ class ProductServiceTest {
                 .isInstanceOf(ProductNotFoundException.class);
 
         verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("search delega en el repositorio y devuelve su resultado")
+    void search_delegatesToRepository() {
+        ProductSearchCriteria criteria = new ProductSearchCriteria(
+                "teclado", null, null, null, null, null, null, null, 0, 20, "id", "ASC");
+        ProductPage page = new ProductPage(List.of(sample), 0, 20, 1, 1);
+        when(repository.search(criteria)).thenReturn(page);
+
+        ProductPage result = service.search(criteria);
+
+        assertThat(result).isEqualTo(page);
+        verify(repository).search(criteria);
+    }
+
+    @Test
+    @DisplayName("search lanza InvalidProductQueryException cuando minPrice > maxPrice")
+    void search_throwsWhenMinPriceGreaterThanMaxPrice() {
+        ProductSearchCriteria criteria = new ProductSearchCriteria(
+                null, null, null, null, new BigDecimal("100"), new BigDecimal("10"),
+                null, null, 0, 20, "id", "ASC");
+
+        assertThatThrownBy(() -> service.search(criteria))
+                .isInstanceOf(InvalidProductQueryException.class)
+                .hasMessageContaining("100")
+                .hasMessageContaining("10");
+
+        verify(repository, never()).search(any());
+    }
+
+    @Test
+    @DisplayName("search permite minPrice == maxPrice")
+    void search_allowsMinPriceEqualToMaxPrice() {
+        ProductSearchCriteria criteria = new ProductSearchCriteria(
+                null, null, null, null, new BigDecimal("50"), new BigDecimal("50"),
+                null, null, 0, 20, "id", "ASC");
+        ProductPage page = new ProductPage(List.of(), 0, 20, 0, 0);
+        when(repository.search(criteria)).thenReturn(page);
+
+        ProductPage result = service.search(criteria);
+
+        assertThat(result.content()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("search lanza InvalidProductQueryException cuando sortBy no es un campo ordenable")
+    void search_throwsWhenSortByIsUnknown() {
+        ProductSearchCriteria criteria = new ProductSearchCriteria(
+                null, null, null, null, null, null, null, null, 0, 20, "notAField", "ASC");
+
+        assertThatThrownBy(() -> service.search(criteria))
+                .isInstanceOf(InvalidProductQueryException.class)
+                .hasMessageContaining("notAField");
+
+        verify(repository, never()).search(any());
     }
 
     @Test

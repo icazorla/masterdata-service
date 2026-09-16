@@ -15,7 +15,5 @@ public interface BrandEntityMapper {
     Brand toDomain(BrandEntity entity);
 
     @Mapping(target = "id", source = "id")
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
     BrandEntity toEntity(Brand brand);
 }

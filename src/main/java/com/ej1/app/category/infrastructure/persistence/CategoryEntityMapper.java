@@ -15,7 +15,5 @@ public interface CategoryEntityMapper {
     Category toDomain(CategoryEntity entity);
 
     @Mapping(target = "id", source = "id")
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
     CategoryEntity toEntity(Category category);
 }

@@ -18,9 +18,10 @@ import org.mapstruct.Named;
  * ({@code ProductEntityMapperImpl} in {@code target/generated-sources/}).
  *
  * <p>{@code id} is mapped from the domain so updates go through {@code merge()}
- * instead of {@code persist()}. {@code createdAt} / {@code updatedAt} are
- * ignored on the way out so Hibernate's {@code @CreationTimestamp} /
- * {@code @UpdateTimestamp} keep populating them. {@code category}/{@code brand}
+ * instead of {@code persist()}. {@code createdAt} / {@code updatedAt} live on
+ * {@link com.ej1.app.shared.infrastructure.persistence.AuditableEntity}, outside
+ * the generated builder, so Hibernate's {@code @CreationTimestamp} /
+ * {@code @UpdateTimestamp} keep populating them untouched. {@code category}/{@code brand}
  * are {@code @ManyToOne} associations on the entity; the domain's real reference
  * is the plain id ({@code categoryId}/{@code brandId} — {@link Product} references
  * those aggregates by identity only), but {@code toDomain} also copies the
@@ -44,8 +45,6 @@ public interface ProductEntityMapper {
     @Mapping(target = "id", source = "id")
     @Mapping(target = "category", source = "categoryId", qualifiedByName = "categoryRef")
     @Mapping(target = "brand", source = "brandId", qualifiedByName = "brandRef")
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
     ProductEntity toEntity(Product product, @Context EntityManager em);
 
     /**

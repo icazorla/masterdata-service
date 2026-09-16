@@ -1,5 +1,6 @@
 package com.ej1.app.product.domain;
 
+import com.ej1.app.shared.domain.Auditable;
 import lombok.Getter;
 
 import java.math.BigDecimal;
@@ -15,7 +16,7 @@ import java.time.LocalDateTime;
  * draft, and ignored by {@code ProductMapper} (commands never set it).
  */
 @Getter
-public final class Product {
+public final class Product extends Auditable {
 
     private final Long id;
     private final String name;
@@ -32,10 +33,9 @@ public final class Product {
     private final String dimensions;
     private final String tags;
     private final Boolean active;
-    private final LocalDateTime createdAt;
-    private final LocalDateTime updatedAt;
 
     private Product(Builder b) {
+        super(b.createdAt, b.updatedAt);
         this.id = b.id;
         this.name = b.name;
         this.description = b.description;
@@ -51,8 +51,6 @@ public final class Product {
         this.dimensions = b.dimensions;
         this.tags = b.tags;
         this.active = b.active == null ? Boolean.TRUE : b.active;
-        this.createdAt = b.createdAt;
-        this.updatedAt = b.updatedAt;
     }
 
     public static Builder builder() {
@@ -98,8 +96,8 @@ public final class Product {
                 .dimensions(this.dimensions)
                 .tags(this.tags)
                 .active(this.active)
-                .createdAt(this.createdAt)
-                .updatedAt(this.updatedAt);
+                .createdAt(this.getCreatedAt())
+                .updatedAt(this.getUpdatedAt());
     }
 
     public static final class Builder {

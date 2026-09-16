@@ -1,8 +1,13 @@
 package com.ej1.app.product.infrastructure.persistence;
 
+import com.ej1.app.brand.infrastructure.persistence.BrandEntity;
+import com.ej1.app.category.infrastructure.persistence.CategoryEntity;
 import com.ej1.app.product.domain.Product;
+import jakarta.persistence.EntityManager;
+import org.mapstruct.Context;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.Named;
 
 /**
  * Adapter-local mapper between the JPA {@link ProductEntity} and the domain
@@ -15,15 +20,50 @@ import org.mapstruct.Mapping;
  * <p>{@code id} is mapped from the domain so updates go through {@code merge()}
  * instead of {@code persist()}. {@code createdAt} / {@code updatedAt} are
  * ignored on the way out so Hibernate's {@code @CreationTimestamp} /
- * {@code @UpdateTimestamp} keep populating them.
+ * {@code @UpdateTimestamp} keep populating them. {@code category}/{@code brand}
+ * are {@code @ManyToOne} associations on the entity; the domain's real reference
+ * is the plain id ({@code categoryId}/{@code brandId} — {@link Product} references
+ * those aggregates by identity only), but {@code toDomain} also copies the
+ * associated row's {@code name} into {@code categoryName}/{@code brandName}, a
+ * read-only label for display. That only works when the caller loaded
+ * {@code entity} with the association populated (see
+ * {@code ProductJpaRepository}'s {@code @EntityGraph} / {@code ProductSpecifications}'
+ * fetch join for reads) — {@code toEntity} going the other way never needs more
+ * than the id, resolved via {@link EntityManager#getReference} (see
+ * {@link #categoryRef}/{@link #brandRef}).
  */
 @Mapper(componentModel = "spring")
 public interface ProductEntityMapper {
 
+    @Mapping(target = "categoryId", source = "category.id")
+    @Mapping(target = "categoryName", source = "category.name")
+    @Mapping(target = "brandId", source = "brand.id")
+    @Mapping(target = "brandName", source = "brand.name")
     Product toDomain(ProductEntity entity);
 
     @Mapping(target = "id", source = "id")
+    @Mapping(target = "category", source = "categoryId", qualifiedByName = "categoryRef")
+    @Mapping(target = "brand", source = "brandId", qualifiedByName = "brandRef")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    ProductEntity toEntity(Product product);
+    ProductEntity toEntity(Product product, @Context EntityManager em);
+
+    /**
+     * A real Hibernate proxy carrying only the id, not a plain detached POJO — Hibernate
+     * reads the id off it to populate the FK column on save without a query, but unlike a
+     * hand-built shell object, this proxy lazily initializes (one SELECT) the moment
+     * something (e.g. {@code toDomain}'s {@code category.name} mapping, called right after
+     * save while the transaction is still open) reads a field other than the id. That's
+     * what makes {@code categoryName}/{@code brandName} come back populated immediately
+     * after a create/update instead of null.
+     */
+    @Named("categoryRef")
+    default CategoryEntity categoryRef(Long id, @Context EntityManager em) {
+        return id == null ? null : em.getReference(CategoryEntity.class, id);
+    }
+
+    @Named("brandRef")
+    default BrandEntity brandRef(Long id, @Context EntityManager em) {
+        return id == null ? null : em.getReference(BrandEntity.class, id);
+    }
 }

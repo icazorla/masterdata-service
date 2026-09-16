@@ -1,5 +1,9 @@
 package com.ej1.app.product.domain.service;
 
+import com.ej1.app.brand.domain.exception.BrandNotFoundException;
+import com.ej1.app.brand.domain.port.BrandRepository;
+import com.ej1.app.category.domain.exception.CategoryNotFoundException;
+import com.ej1.app.category.domain.port.CategoryRepository;
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.exception.DuplicateSkuException;
 import com.ej1.app.product.domain.exception.InvalidProductQueryException;
@@ -44,6 +48,12 @@ class ProductServiceTest {
     @Spy
     private ProductMapper mapper = Mappers.getMapper(ProductMapperAdapter.class);
 
+    @Mock
+    private CategoryRepository categoryRepository;
+
+    @Mock
+    private BrandRepository brandRepository;
+
     @InjectMocks
     private ProductService service;
 
@@ -60,8 +70,8 @@ class ProductServiceTest {
                 .price(new BigDecimal("89.99"))
                 .stock(10)
                 .sku("KB-001")
-                .category("Periféricos")
-                .brand("Logitech")
+                .categoryId(1L)
+                .brandId(3L)
                 .active(true)
                 .build();
 
@@ -71,8 +81,8 @@ class ProductServiceTest {
                 new BigDecimal("89.99"),
                 10,
                 "KB-001",
-                "Periféricos",
-                "Logitech",
+                1L,
+                3L,
                 null,
                 null,
                 null,
@@ -85,8 +95,8 @@ class ProductServiceTest {
                 new BigDecimal("89.99"),
                 10,
                 "KB-001",
-                "Periféricos",
-                "Logitech",
+                1L,
+                3L,
                 null,
                 null,
                 null,
@@ -138,6 +148,8 @@ class ProductServiceTest {
     @DisplayName("create persiste el producto cuando el SKU es nuevo")
     void create_persistsWhenSkuNew() {
         when(repository.existsBySku("KB-001")).thenReturn(false);
+        when(categoryRepository.existsById(1L)).thenReturn(true);
+        when(brandRepository.existsById(3L)).thenReturn(true);
         when(repository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Product result = service.create(validCreate);
@@ -161,15 +173,44 @@ class ProductServiceTest {
     }
 
     @Test
+    @DisplayName("create lanza CategoryNotFoundException cuando categoryId no existe")
+    void create_throwsWhenCategoryDoesNotExist() {
+        when(repository.existsBySku("KB-001")).thenReturn(false);
+        when(categoryRepository.existsById(1L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.create(validCreate))
+                .isInstanceOf(CategoryNotFoundException.class)
+                .hasMessageContaining("1");
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("create lanza BrandNotFoundException cuando brandId no existe")
+    void create_throwsWhenBrandDoesNotExist() {
+        when(repository.existsBySku("KB-001")).thenReturn(false);
+        when(categoryRepository.existsById(1L)).thenReturn(true);
+        when(brandRepository.existsById(3L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.create(validCreate))
+                .isInstanceOf(BrandNotFoundException.class)
+                .hasMessageContaining("3");
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("create aplica active=true por defecto cuando el command lo omite")
     void create_appliesDefaultActive() {
         CreateProductCommand withoutActive = new CreateProductCommand(
                 "Teclado mecánico", "Switches brown",
                 new BigDecimal("89.99"), 10, "KB-001",
-                "Periféricos", "Logitech",
+                1L, 3L,
                 null, null, null, null,
                 null);
         when(repository.existsBySku(anyString())).thenReturn(false);
+        when(categoryRepository.existsById(1L)).thenReturn(true);
+        when(brandRepository.existsById(3L)).thenReturn(true);
         when(repository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Product result = service.create(withoutActive);

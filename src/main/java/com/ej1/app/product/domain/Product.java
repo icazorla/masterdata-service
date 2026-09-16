@@ -5,6 +5,15 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * {@code categoryId}/{@code brandId} are the real reference — the only fields commands
+ * write and search filters match on, per the DDD convention of referencing another
+ * aggregate by identity only. {@code categoryName}/{@code brandName} are a read-only,
+ * denormalized label carried alongside for display: populated by the persistence adapter
+ * when reading (via the {@code ProductEntity} association, fetched with the row in one
+ * query — see {@code ProductEntityMapper}), always {@code null} on a freshly-built command
+ * draft, and ignored by {@code ProductMapper} (commands never set it).
+ */
 @Getter
 public final class Product {
 
@@ -14,8 +23,10 @@ public final class Product {
     private final BigDecimal price;
     private final Integer stock;
     private final String sku;
-    private final String category;
-    private final String brand;
+    private final Long categoryId;
+    private final String categoryName;
+    private final Long brandId;
+    private final String brandName;
     private final String imageUrl;
     private final BigDecimal weight;
     private final String dimensions;
@@ -31,8 +42,10 @@ public final class Product {
         this.price = b.price;
         this.stock = b.stock;
         this.sku = b.sku;
-        this.category = b.category;
-        this.brand = b.brand;
+        this.categoryId = b.categoryId;
+        this.categoryName = b.categoryName;
+        this.brandId = b.brandId;
+        this.brandName = b.brandName;
         this.imageUrl = b.imageUrl;
         this.weight = b.weight;
         this.dimensions = b.dimensions;
@@ -54,8 +67,10 @@ public final class Product {
                 .price(this.price)
                 .stock(this.stock)
                 .sku(this.sku)
-                .category(this.category)
-                .brand(this.brand)
+                .categoryId(this.categoryId)
+                .categoryName(this.categoryName)
+                .brandId(this.brandId)
+                .brandName(this.brandName)
                 .imageUrl(this.imageUrl)
                 .weight(this.weight)
                 .dimensions(this.dimensions)
@@ -74,8 +89,10 @@ public final class Product {
                 .price(this.price)
                 .stock(this.stock)
                 .sku(this.sku)
-                .category(this.category)
-                .brand(this.brand)
+                .categoryId(this.categoryId)
+                .categoryName(this.categoryName)
+                .brandId(this.brandId)
+                .brandName(this.brandName)
                 .imageUrl(this.imageUrl)
                 .weight(this.weight)
                 .dimensions(this.dimensions)
@@ -92,8 +109,10 @@ public final class Product {
         private BigDecimal price;
         private Integer stock;
         private String sku;
-        private String category;
-        private String brand;
+        private Long categoryId;
+        private String categoryName;
+        private Long brandId;
+        private String brandName;
         private String imageUrl;
         private BigDecimal weight;
         private String dimensions;
@@ -108,8 +127,10 @@ public final class Product {
         public Builder price(BigDecimal price) { this.price = price; return this; }
         public Builder stock(Integer stock) { this.stock = stock; return this; }
         public Builder sku(String sku) { this.sku = sku; return this; }
-        public Builder category(String category) { this.category = category; return this; }
-        public Builder brand(String brand) { this.brand = brand; return this; }
+        public Builder categoryId(Long categoryId) { this.categoryId = categoryId; return this; }
+        public Builder categoryName(String categoryName) { this.categoryName = categoryName; return this; }
+        public Builder brandId(Long brandId) { this.brandId = brandId; return this; }
+        public Builder brandName(String brandName) { this.brandName = brandName; return this; }
         public Builder imageUrl(String imageUrl) { this.imageUrl = imageUrl; return this; }
         public Builder weight(BigDecimal weight) { this.weight = weight; return this; }
         public Builder dimensions(String dimensions) { this.dimensions = dimensions; return this; }

@@ -1,5 +1,9 @@
 package com.ej1.app.product.infrastructure.persistence;
 
+import com.ej1.app.brand.infrastructure.persistence.BrandEntity;
+import com.ej1.app.brand.infrastructure.persistence.BrandJpaRepository;
+import com.ej1.app.category.infrastructure.persistence.CategoryEntity;
+import com.ej1.app.category.infrastructure.persistence.CategoryJpaRepository;
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
@@ -30,25 +34,43 @@ class ProductRepositoryAdapterTest {
     @Autowired
     private ProductJpaRepository jpa;
 
+    @Autowired
+    private CategoryJpaRepository categoryJpa;
+
+    @Autowired
+    private BrandJpaRepository brandJpa;
+
     private Product sample;
+    private Long perifericosId;
+    private Long pantallasId;
+    private Long cablesId;
+    private Long logitechId;
 
     @BeforeEach
     void setUp() {
         jpa.deleteAll();
+        categoryJpa.deleteAll();
+        brandJpa.deleteAll();
+
+        perifericosId = categoryJpa.save(CategoryEntity.builder().name("Periféricos").build()).getId();
+        pantallasId = categoryJpa.save(CategoryEntity.builder().name("Pantallas").build()).getId();
+        cablesId = categoryJpa.save(CategoryEntity.builder().name("Cables").build()).getId();
+        logitechId = brandJpa.save(BrandEntity.builder().name("Logitech").build()).getId();
+
         sample = Product.builder()
                 .name("Teclado mecánico")
                 .description("Switches brown")
                 .price(new BigDecimal("89.99"))
                 .stock(10)
                 .sku("KB-001")
-                .category("Periféricos")
-                .brand("Logitech")
+                .categoryId(perifericosId)
+                .brandId(logitechId)
                 .active(true)
                 .build();
     }
 
     @Test
-    @DisplayName("save persiste y devuelve Product con id y timestamps")
+    @DisplayName("save persiste y devuelve Product con id, timestamps y categoryName/brandName resueltos")
     void save_persistsAndReturnsProduct() {
         Product saved = adapter.save(sample);
 
@@ -57,11 +79,15 @@ class ProductRepositoryAdapterTest {
         assertThat(saved.getUpdatedAt()).isNotNull();
         assertThat(saved.getSku()).isEqualTo("KB-001");
         assertThat(saved.getActive()).isTrue();
+        // save() re-reads after insert (see ProductRepositoryAdapter#save) precisely so these
+        // aren't left null from the id-only reference shell ProductEntityMapper writes.
+        assertThat(saved.getCategoryName()).isEqualTo("Periféricos");
+        assertThat(saved.getBrandName()).isEqualTo("Logitech");
         assertThat(jpa.count()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("findById devuelve el Product del dominio")
+    @DisplayName("findById devuelve el Product del dominio, con categoryId/brandId y sus nombres resueltos")
     void findById_returnsDomain() {
         Product saved = adapter.save(sample);
 
@@ -70,6 +96,10 @@ class ProductRepositoryAdapterTest {
         assertThat(result).isPresent();
         assertThat(result.get().getSku()).isEqualTo("KB-001");
         assertThat(result.get().getName()).isEqualTo("Teclado mecánico");
+        assertThat(result.get().getCategoryId()).isEqualTo(perifericosId);
+        assertThat(result.get().getCategoryName()).isEqualTo("Periféricos");
+        assertThat(result.get().getBrandId()).isEqualTo(logitechId);
+        assertThat(result.get().getBrandName()).isEqualTo("Logitech");
         assertThat(result.get().getCreatedAt()).isNotNull();
     }
 
@@ -134,40 +164,41 @@ class ProductRepositoryAdapterTest {
     }
 
     @Test
-    @DisplayName("search filtra por categoría (contains, case-insensitive) y pagina")
-    void search_filtersByCategoryCaseInsensitive() {
+    @DisplayName("search filtra por categoría (id exacto) y pagina")
+    void search_filtersByCategoryId() {
         adapter.save(sample);
         adapter.save(Product.builder()
                 .name("Ratón").price(new BigDecimal("29.99")).stock(50).sku("MS-001")
-                .category("Periféricos").active(true).build());
+                .categoryId(perifericosId).active(true).build());
         adapter.save(Product.builder()
                 .name("Monitor").price(new BigDecimal("199.99")).stock(3).sku("MN-001")
-                .category("Pantallas").active(true).build());
+                .categoryId(pantallasId).active(true).build());
 
         PageResult<Product> result = adapter.search(new ProductSearchCriteria(
-                null, null, List.of("periférico"), null, null, null, null, null),
+                null, null, List.of(perifericosId), null, null, null, null, null),
                 new Paging(0, 20, "id", "ASC"));
 
         assertThat(result.totalElements()).isEqualTo(2);
         assertThat(result.content()).extracting(Product::getSku).containsExactlyInAnyOrder("KB-001", "MS-001");
+        assertThat(result.content()).extracting(Product::getCategoryName).containsOnly("Periféricos");
     }
 
     @Test
-    @DisplayName("search filtra por categoría con varios valores (OR entre valores)")
-    void search_filtersByMultipleCategoriesWithOr() {
+    @DisplayName("search filtra por categoría con varios ids (OR entre valores)")
+    void search_filtersByMultipleCategoryIdsWithOr() {
         adapter.save(sample); // Periféricos
         adapter.save(Product.builder()
                 .name("Ratón").price(new BigDecimal("29.99")).stock(50).sku("MS-001")
-                .category("Periféricos").active(true).build());
+                .categoryId(perifericosId).active(true).build());
         adapter.save(Product.builder()
                 .name("Monitor").price(new BigDecimal("199.99")).stock(3).sku("MN-001")
-                .category("Pantallas").active(true).build());
+                .categoryId(pantallasId).active(true).build());
         adapter.save(Product.builder()
                 .name("Cable").price(new BigDecimal("9.99")).stock(100).sku("CB-001")
-                .category("Cables").active(true).build());
+                .categoryId(cablesId).active(true).build());
 
         PageResult<Product> result = adapter.search(new ProductSearchCriteria(
-                null, null, List.of("periférico", "pantalla"), null, null, null, null, null),
+                null, null, List.of(perifericosId, pantallasId), null, null, null, null, null),
                 new Paging(0, 20, "id", "ASC"));
 
         assertThat(result.totalElements()).isEqualTo(3);
@@ -230,12 +261,27 @@ class ProductRepositoryAdapterTest {
     }
 
     @Test
+    @DisplayName("search ordena por categoryId (vía join con la tabla de categorías)")
+    void search_sortsByCategoryId() {
+        adapter.save(Product.builder()
+                .name("Cable").price(new BigDecimal("9.99")).stock(100).sku("CB-001")
+                .categoryId(cablesId).active(true).build());
+        adapter.save(sample); // Periféricos
+
+        PageResult<Product> result = adapter.search(new ProductSearchCriteria(
+                null, null, null, null, null, null, null, null),
+                new Paging(0, 20, "categoryId", "ASC"));
+
+        assertThat(result.content()).extracting(Product::getSku).containsExactly("KB-001", "CB-001");
+    }
+
+    @Test
     @DisplayName("search devuelve página vacía cuando no hay coincidencias")
     void search_returnsEmptyPageWhenNoMatches() {
         adapter.save(sample);
 
         PageResult<Product> result = adapter.search(new ProductSearchCriteria(
-                null, null, List.of("no-existe"), null, null, null, null, null),
+                null, null, List.of(999999L), null, null, null, null, null),
                 new Paging(0, 20, "id", "ASC"));
 
         assertThat(result.content()).isEmpty();

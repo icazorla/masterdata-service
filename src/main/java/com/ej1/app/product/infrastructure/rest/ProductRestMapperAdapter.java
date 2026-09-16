@@ -1,7 +1,10 @@
 package com.ej1.app.product.infrastructure.rest;
 
+import com.ej1.app.product.domain.Product;
+import com.ej1.app.product.interfaces.rest.dto.ProductResponse;
 import com.ej1.app.product.interfaces.rest.mapper.ProductRestMapper;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
 /**
  * MapStruct-backed implementation of {@link ProductRestMapper}.
@@ -13,12 +16,20 @@ import org.mapstruct.Mapper;
  * {@link ProductRestMapper} and is registered as a Spring component via
  * {@code componentModel = "spring"}.
  *
- * <p>No hand-written overrides are needed: every property on
- * {@link com.ej1.app.product.domain.port.ProductSearchCriteria} has a same-named
- * counterpart on {@code ProductQueryRequest}, MapStruct's plain field-by-field mapping.
- * Paging/sort aren't part of either type — they travel separately as their own parameter
- * wherever needed (see {@code ProductController}/{@code ProductService}).
+ * <p>Every property on {@link com.ej1.app.product.domain.port.ProductSearchCriteria}/
+ * {@code ProductRequest} has a same-named counterpart on the other side, so MapStruct's
+ * plain field-by-field mapping covers those methods with no overrides needed here.
+ * {@code toResponse} is the one exception: {@code ProductResponse.category}/{@code brand}
+ * are nested {@code {id, name}} projections built from two separate {@link Product}
+ * fields each ({@code categoryId}+{@code categoryName}, {@code brandId}+{@code brandName}),
+ * so it's routed to the port's {@link ProductRestMapper#toCategoryRef}/
+ * {@link ProductRestMapper#toBrandRef} default methods instead of a 1:1 field match.
  */
 @Mapper(componentModel = "spring")
 public interface ProductRestMapperAdapter extends ProductRestMapper {
+
+    @Override
+    @Mapping(target = "category", source = "product")
+    @Mapping(target = "brand", source = "product")
+    ProductResponse toResponse(Product product);
 }

@@ -11,8 +11,8 @@ import java.util.List;
  *
  * <p>{@code name}/{@code sku}/{@code tags} match case-insensitively as a
  * substring; {@code minPrice}/{@code maxPrice}/{@code active} match exactly.
- * {@code category}/{@code brand} accept several values — a product matches
- * when it case-insensitively contains <em>any</em> of the given values (OR'd
+ * {@code categoryId}/{@code brandId} accept several values — a product matches
+ * when its category/brand id is <em>any</em> of the given ones (OR'd
  * together), and that group is then AND'd with the other filters, same as a
  * single value would be.
  *
@@ -25,8 +25,8 @@ import java.util.List;
 public record ProductSearchCriteria(
         String name,
         String sku,
-        List<String> category,
-        List<String> brand,
+        List<Long> categoryId,
+        List<Long> brandId,
         BigDecimal minPrice,
         BigDecimal maxPrice,
         Boolean active,

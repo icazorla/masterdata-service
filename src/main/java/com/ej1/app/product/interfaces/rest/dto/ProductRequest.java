@@ -47,13 +47,11 @@ public class ProductRequest {
     @Schema(description = "SKU único del producto", example = "KB-001", requiredMode = Schema.RequiredMode.REQUIRED)
     private String sku;
 
-    @Size(max = 80)
-    @Schema(description = "Categoría del producto", example = "Periféricos")
-    private @Nullable String category;
+    @Schema(description = "Id de la categoría del producto (tabla de datos maestros)", example = "1")
+    private @Nullable Long categoryId;
 
-    @Size(max = 80)
-    @Schema(description = "Marca del producto", example = "Logitech")
-    private @Nullable String brand;
+    @Schema(description = "Id de la marca del producto (tabla de datos maestros)", example = "3")
+    private @Nullable Long brandId;
 
     @Size(max = 500)
     @Schema(description = "URL de la imagen del producto")

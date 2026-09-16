@@ -8,13 +8,13 @@ import com.ej1.app.product.domain.port.CreateProductCommand;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
 import com.ej1.app.product.domain.service.ProductService;
-import com.ej1.app.product.infrastructure.exception.ApiExceptionHandler;
 import com.ej1.app.product.infrastructure.rest.ProductRestMapperAdapterImpl;
 import com.ej1.app.product.interfaces.rest.dto.ProductQueryRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductRequest;
 import com.ej1.app.product.interfaces.rest.mapper.ProductRestMapper;
 import com.ej1.app.shared.domain.PageResult;
 import com.ej1.app.shared.domain.Paging;
+import com.ej1.app.shared.rest.exception.ApiExceptionHandler;
 import com.ej1.app.shared.rest.exception.JsonPatchExceptionHandler;
 import com.ej1.app.shared.rest.patch.JsonPatchApplier;
 import org.junit.jupiter.api.Test;
@@ -29,6 +29,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -67,8 +68,10 @@ class ProductControllerTest {
                 .price(new BigDecimal("89.99"))
                 .stock(10)
                 .sku(sku)
-                .category("Periféricos")
-                .brand("Logitech")
+                .categoryId(1L)
+                .categoryName("Periféricos")
+                .brandId(3L)
+                .brandName("Logitech")
                 .imageUrl("https://example.com/kb.jpg")
                 .weight(new BigDecimal("1.200"))
                 .dimensions("45x15x3 cm")
@@ -84,8 +87,8 @@ class ProductControllerTest {
                 .price(new BigDecimal("89.99"))
                 .stock(10)
                 .sku(sku)
-                .category("Periféricos")
-                .brand("Logitech")
+                .categoryId(1L)
+                .brandId(3L)
                 .active(true)
                 .build();
     }
@@ -145,7 +148,22 @@ class ProductControllerTest {
         mockMvc.perform(get("/api/products/{id}", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.sku").value("KB-001"));
+                .andExpect(jsonPath("$.sku").value("KB-001"))
+                .andExpect(jsonPath("$.category.id").value(1))
+                .andExpect(jsonPath("$.category.name").value("Periféricos"))
+                .andExpect(jsonPath("$.brand.id").value(3))
+                .andExpect(jsonPath("$.brand.name").value("Logitech"));
+    }
+
+    @Test
+    void getById_returnsNullCategoryAndBrandWhenNotSet() throws Exception {
+        when(service.findById(1L)).thenReturn(Product.builder()
+                .id(1L).name("Cable").price(new BigDecimal("9.99")).stock(1).sku("CB-001").active(true).build());
+
+        mockMvc.perform(get("/api/products/{id}", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category").value(nullValue()))
+                .andExpect(jsonPath("$.brand").value(nullValue()));
     }
 
     @Test
@@ -237,7 +255,7 @@ class ProductControllerTest {
         mockMvc.perform(post("/api/products/query")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(ProductQueryRequest.builder()
-                                .category(List.of("Periféricos"))
+                                .categoryId(List.of(1L))
                                 .minPrice(new BigDecimal("10"))
                                 .build())))
                 .andExpect(status().isOk())

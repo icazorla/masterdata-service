@@ -17,20 +17,17 @@ import java.util.Map;
 /**
  * Translates JSON Patch (RFC 6902) errors to HTTP responses.
  *
- * <p>Lives in {@code com.ej1.app.shared.rest.exception}, separate from any
- * feature's own {@code infrastructure.exception} advice (e.g.
- * {@code product.infrastructure.exception.ApiExceptionHandler}), because a JSON
- * Patch document (op/path/value/from) is pure REST/HTTP transport vocabulary that
- * never reaches any domain — unlike {@code ProductNotFoundException} or
- * {@code DuplicateSkuException}. {@link JsonPatchException} and
- * {@link JsonPatchTestFailedException} are thrown by {@link JsonPatch} /
- * {@code JsonPatchApplier}, both in {@code shared.rest.patch}, so any feature that
- * exposes a JSON Patch endpoint gets this translation for free without declaring
- * its own handler.
+ * <p>Kept separate from {@link ApiExceptionHandler} because a JSON Patch document
+ * (op/path/value/from) is pure REST/HTTP transport vocabulary that never reaches
+ * any domain — unlike {@code ProductNotFoundException} or {@code DuplicateSkuException}.
+ * {@link JsonPatchException} and {@link JsonPatchTestFailedException} are thrown by
+ * {@link JsonPatch} / {@code JsonPatchApplier}, both in {@code shared.rest.patch}, so
+ * any feature that exposes a JSON Patch endpoint gets this translation for free
+ * without declaring its own handler.
  *
- * <p>{@code @Order(0)}: must sort before a feature's own catch-all advice (typically
- * {@code @Order(LOWEST_PRECEDENCE)}) — see the note there on why advice ordering
- * matters when more than one {@code @ControllerAdvice} is registered.
+ * <p>{@code @Order(0)}: must sort before {@link ApiExceptionHandler}'s catch-all
+ * advice ({@code @Order(LOWEST_PRECEDENCE)}) — see the note there on why advice
+ * ordering matters when more than one {@code @ControllerAdvice} is registered.
  */
 @RestControllerAdvice
 @Order(0)

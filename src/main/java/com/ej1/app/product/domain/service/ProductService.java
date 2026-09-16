@@ -1,5 +1,9 @@
 package com.ej1.app.product.domain.service;
 
+import com.ej1.app.brand.domain.exception.BrandNotFoundException;
+import com.ej1.app.brand.domain.port.BrandRepository;
+import com.ej1.app.category.domain.exception.CategoryNotFoundException;
+import com.ej1.app.category.domain.port.CategoryRepository;
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.exception.DuplicateSkuException;
 import com.ej1.app.product.domain.exception.InvalidProductQueryException;
@@ -42,10 +46,12 @@ public class ProductService {
      * {@code ProductServiceSortFieldsTest}.
      */
     static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
-            "id", "name", "price", "stock", "sku", "category", "brand", "createdAt", "updatedAt");
+            "id", "name", "price", "stock", "sku", "categoryId", "brandId", "createdAt", "updatedAt");
 
     private final ProductRepository repository;
     private final ProductMapper mapper;
+    private final CategoryRepository categoryRepository;
+    private final BrandRepository brandRepository;
 
     @Transactional(readOnly = true)
     public Product findById(Long id) {
@@ -64,6 +70,7 @@ public class ProductService {
         if (repository.existsBySku(cmd.sku())) {
             throw new DuplicateSkuException(cmd.sku());
         }
+        requireCategoryAndBrandExist(cmd.categoryId(), cmd.brandId());
         Product draft = mapper.toDomain(cmd);
         return repository.save(draft);
     }
@@ -76,9 +83,24 @@ public class ProductService {
         if (!existing.getSku().equals(cmd.sku()) && repository.existsBySku(cmd.sku())) {
             throw new DuplicateSkuException(cmd.sku());
         }
+        requireCategoryAndBrandExist(cmd.categoryId(), cmd.brandId());
 
         Product updated = mapper.applyUpdate(existing, cmd);
         return repository.save(updated);
+    }
+
+    /**
+     * {@code categoryId}/{@code brandId} reference a different aggregate (master data),
+     * so their existence is checked here rather than left to a FK violation surfacing
+     * later as an opaque database error.
+     */
+    private void requireCategoryAndBrandExist(Long categoryId, Long brandId) {
+        if (categoryId != null && !categoryRepository.existsById(categoryId)) {
+            throw new CategoryNotFoundException(categoryId);
+        }
+        if (brandId != null && !brandRepository.existsById(brandId)) {
+            throw new BrandNotFoundException(brandId);
+        }
     }
 
     /**

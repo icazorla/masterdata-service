@@ -74,7 +74,7 @@ public class ProductController {
             @Parameter(description = "Tamaño de página (1-100)")
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @Parameter(description = "Campo de ordenación. Valores válidos: id, name, price, stock, sku, "
-                    + "category, brand, createdAt, updatedAt (se valida como regla de negocio, no de formato — 422 si no es válido).")
+                    + "categoryId, brandId, createdAt, updatedAt (se valida como regla de negocio, no de formato — 422 si no es válido).")
             @RequestParam(defaultValue = "id") String sortBy,
             @Parameter(description = "Dirección de ordenación")
             @RequestParam(defaultValue = "ASC")
@@ -135,7 +135,7 @@ public class ProductController {
             @Parameter(description = "Tamaño de página (1-100)")
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @Parameter(description = "Campo de ordenación. Valores válidos: id, name, price, stock, sku, "
-                    + "category, brand, createdAt, updatedAt (se valida como regla de negocio, no de formato — 422 si no es válido).")
+                    + "categoryId, brandId, createdAt, updatedAt (se valida como regla de negocio, no de formato — 422 si no es válido).")
             @RequestParam(defaultValue = "id") String sortBy,
             @Parameter(description = "Dirección de ordenación")
             @RequestParam(defaultValue = "ASC")

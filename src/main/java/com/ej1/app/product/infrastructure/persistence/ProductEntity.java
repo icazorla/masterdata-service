@@ -1,15 +1,22 @@
 package com.ej1.app.product.infrastructure.persistence;
 
+import com.ej1.app.brand.infrastructure.persistence.BrandEntity;
+import com.ej1.app.category.infrastructure.persistence.CategoryEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -43,11 +50,22 @@ public class ProductEntity {
     @Column(nullable = false, unique = true, length = 40)
     private String sku;
 
-    @Column(length = 80)
-    private String category;
+    /**
+     * Excluded from {@code equals}/{@code hashCode}/{@code toString} (Lombok's {@code @Data}
+     * would otherwise touch this lazy association's proxy outside a Hibernate session, e.g.
+     * when logging or asserting on a detached entity, throwing {@code LazyInitializationException}).
+     */
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private CategoryEntity category;
 
-    @Column(length = 80)
-    private String brand;
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id")
+    private BrandEntity brand;
 
     @Column(name = "image_url", length = 500)
     private String imageUrl;

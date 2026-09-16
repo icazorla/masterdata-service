@@ -1,6 +1,7 @@
 package com.ej1.app.product.infrastructure.persistence;
 
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
+import jakarta.persistence.criteria.JoinType;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -29,10 +30,11 @@ final class ProductSpecifications {
         // null"), so an all-null criteria has to fall back to an explicit
         // always-true predicate rather than a null reference.
         return Stream.of(
+                        fetchCategoryAndBrand(),
                         containsIgnoreCase("name", criteria.name()),
                         containsIgnoreCase("sku", criteria.sku()),
-                        containsIgnoreCaseAnyOf("category", criteria.category()),
-                        containsIgnoreCaseAnyOf("brand", criteria.brand()),
+                        inIds("category", criteria.categoryId()),
+                        inIds("brand", criteria.brandId()),
                         containsIgnoreCase("tags", criteria.tags()),
                         minPrice(criteria.minPrice()),
                         maxPrice(criteria.maxPrice()),
@@ -40,6 +42,24 @@ final class ProductSpecifications {
                 .filter(Objects::nonNull)
                 .reduce(Specification::and)
                 .orElse((root, query, cb) -> cb.conjunction());
+    }
+
+    /**
+     * Eagerly joins {@code category}/{@code brand} in the same query instead of leaving
+     * Hibernate to lazily load each one row-by-row for every product in the page —
+     * {@code Product.categoryName}/{@code brandName} need them populated on every read.
+     * Skipped for the {@code COUNT} query Spring Data runs alongside the content query for
+     * paging: a fetch is not allowed there ({@code query.getResultType() == Long.class}
+     * identifies it), and a row count doesn't need the joined data anyway.
+     */
+    private static Specification<ProductEntity> fetchCategoryAndBrand() {
+        return (root, query, cb) -> {
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch("category", JoinType.LEFT);
+                root.fetch("brand", JoinType.LEFT);
+            }
+            return cb.conjunction();
+        };
     }
 
     private static Specification<ProductEntity> containsIgnoreCase(String field, String value) {
@@ -51,19 +71,15 @@ final class ProductSpecifications {
     }
 
     /**
-     * OR's a case-insensitive "contains" match across every given value —
-     * a product matches when {@code field} contains any one of them. Blank
-     * values are ignored; if none remain, no restriction is applied.
+     * Matches when the association named {@code field} (e.g. {@code category}, a
+     * {@code @ManyToOne}) has an id in {@code ids} — the equivalent of an OR across
+     * several exact values. {@code null}/empty applies no restriction.
      */
-    private static Specification<ProductEntity> containsIgnoreCaseAnyOf(String field, List<String> values) {
-        if (CollectionUtils.isEmpty(values)) {
+    private static Specification<ProductEntity> inIds(String field, List<Long> ids) {
+        if (CollectionUtils.isEmpty(ids)) {
             return null;
         }
-        return values.stream()
-                .map(value -> containsIgnoreCase(field, value))
-                .filter(Objects::nonNull)
-                .reduce(Specification::or)
-                .orElse(null);
+        return (root, query, cb) -> root.get(field).get("id").in(ids);
     }
 
     private static Specification<ProductEntity> minPrice(BigDecimal minPrice) {

@@ -5,6 +5,7 @@ import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.shared.domain.PageResult;
 import com.ej1.app.shared.domain.Paging;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +20,7 @@ public class ProductRepositoryAdapter implements ProductRepository {
 
     private final ProductJpaRepository jpa;
     private final ProductEntityMapper mapper;
+    private final EntityManager entityManager;
 
     @Override
     public Optional<Product> findById(Long id) {
@@ -42,7 +44,13 @@ public class ProductRepositoryAdapter implements ProductRepository {
 
     @Override
     public Product save(Product product) {
-        return mapper.toDomain(jpa.save(mapper.toEntity(product)));
+        // mapper.toEntity resolves category/brand via EntityManager.getReference — a real
+        // Hibernate proxy, not a detached POJO — so toDomain's category.name/brand.name
+        // mapping lazily initializes it here (one SELECT) instead of coming back null.
+        // A plain re-fetch wouldn't achieve the same thing: within this same persistence
+        // context, jpa.findById(id) right after save() would just return the identity-mapped
+        // instance we already hold, unqueried, ignoring any @EntityGraph.
+        return mapper.toDomain(jpa.save(mapper.toEntity(product, entityManager)));
     }
 
     @Override
@@ -52,7 +60,7 @@ public class ProductRepositoryAdapter implements ProductRepository {
 
     @Override
     public PageResult<Product> search(ProductSearchCriteria criteria, Paging paging) {
-        Sort sort = Sort.by(Sort.Direction.fromString(paging.sortDirection()), paging.sortBy());
+        Sort sort = Sort.by(Sort.Direction.fromString(paging.sortDirection()), toEntitySortProperty(paging.sortBy()));
         Pageable pageable = PageRequest.of(paging.page(), paging.size(), sort);
         var result = jpa.findAll(ProductSpecifications.from(criteria), pageable);
         return new PageResult<>(
@@ -61,5 +69,21 @@ public class ProductRepositoryAdapter implements ProductRepository {
                 result.getSize(),
                 result.getTotalElements(),
                 result.getTotalPages());
+    }
+
+    /**
+     * {@code categoryId}/{@code brandId} are {@code Product}'s (domain) sortable field
+     * names — {@link com.ej1.app.product.domain.service.ProductService#ALLOWED_SORT_FIELDS}
+     * validates against those. {@link ProductEntity} has no such property, only the
+     * {@code category}/{@code brand} associations, so a domain-facing sort name is
+     * translated to the JPA property path (nested, resolved via a join) here, at the
+     * infrastructure boundary — the only layer that knows about {@link ProductEntity}'s shape.
+     */
+    private static String toEntitySortProperty(String sortBy) {
+        return switch (sortBy) {
+            case "categoryId" -> "category.id";
+            case "brandId" -> "brand.id";
+            default -> sortBy;
+        };
     }
 }

@@ -1,12 +1,13 @@
-package com.ej1.app.product.infrastructure.exception;
+package com.ej1.app.shared.rest.exception;
 
-import com.ej1.app.product.domain.exception.DuplicateSkuException;
-import com.ej1.app.product.domain.exception.InvalidProductQueryException;
-import com.ej1.app.product.domain.exception.ProductNotFoundException;
+import com.ej1.app.shared.domain.exception.DuplicateResourceException;
+import com.ej1.app.shared.domain.exception.InvalidQueryException;
+import com.ej1.app.shared.domain.exception.NotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -22,39 +23,60 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * {@code @Order(LOWEST_PRECEDENCE)}: Spring does not rank {@code @ExceptionHandler} specificity
- * <em>across</em> separate {@code @ControllerAdvice} beans — for a given exception it picks the
- * first advice bean (in order) that has any matching handler, even if a later advice bean
- * (e.g. {@code JsonPatchExceptionHandler}) declares a more specific one. Since this class's
- * {@link #handleGeneric} matches every {@link Exception}, it must always sort last, or it would
- * silently swallow exceptions meant for other advices.
+ * Global REST exception handler, shared across every feature (product, category,
+ * brand, ...). {@link NotFoundException}/{@link DuplicateResourceException}/
+ * {@link InvalidQueryException} are base types each aggregate's own domain
+ * exception extends (e.g. {@code ProductNotFoundException}, {@code CategoryNotFoundException},
+ * {@code InvalidProductQueryException}), so a new feature gets 404/409/422 mapping
+ * for free without a new handler method here.
+ *
+ * <p>{@code @Order(LOWEST_PRECEDENCE)}: Spring does not rank {@code @ExceptionHandler}
+ * specificity <em>across</em> separate {@code @ControllerAdvice} beans — for a given
+ * exception it picks the first advice bean (in order) that has any matching handler,
+ * even if a later advice bean (e.g. {@code JsonPatchExceptionHandler}) declares a more
+ * specific one. Since this class's {@link #handleGeneric} matches every
+ * {@link Exception}, it must always sort last, or it would silently swallow exceptions
+ * meant for other advices.
  */
 @RestControllerAdvice
 @Order(Ordered.LOWEST_PRECEDENCE)
 @Slf4j
 public class ApiExceptionHandler {
 
-    @ExceptionHandler(ProductNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleNotFound(ProductNotFoundException ex) {
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNotFound(NotFoundException ex) {
         log.warn(ex.getMessage());
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), List.of());
     }
 
-    @ExceptionHandler(DuplicateSkuException.class)
-    public ResponseEntity<Map<String, Object>> handleDuplicate(DuplicateSkuException ex) {
+    @ExceptionHandler(DuplicateResourceException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicate(DuplicateResourceException ex) {
         log.warn(ex.getMessage());
         return build(HttpStatus.CONFLICT, ex.getMessage(), List.of());
     }
 
     /**
      * Query content well-formed per the declared media type, but semantically invalid
-     * as a product query (e.g. {@code minPrice > maxPrice}) — see the RFC 10008 400 vs
-     * 422 distinction documented on {@link InvalidProductQueryException}.
+     * as a query (e.g. {@code minPrice > maxPrice}) — see the RFC 10008 400 vs 422
+     * distinction documented on {@link InvalidQueryException}.
      */
-    @ExceptionHandler(InvalidProductQueryException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidQuery(InvalidProductQueryException ex) {
+    @ExceptionHandler(InvalidQueryException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidQuery(InvalidQueryException ex) {
         log.warn(ex.getMessage());
         return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), List.of());
+    }
+
+    /**
+     * A row can't be deleted because another table still references it via foreign
+     * key (e.g. deleting a {@code Category}/{@code Brand} that products still point
+     * to), or a race lost a unique-constraint check performed earlier in the request.
+     * Surfaced by the database, wrapped by Spring Data as this exception.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn(ex.getMessage());
+        return build(HttpStatus.CONFLICT,
+                "The resource cannot be saved or deleted because it is referenced by other records", List.of());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

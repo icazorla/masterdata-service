@@ -121,7 +121,7 @@ gratis la traducción de errores — ver la sección dedicada más abajo.
 
 | Capa              | Puede importar                              | NO puede importar                                  |
 |-------------------|---------------------------------------------|----------------------------------------------------|
-| `domain`          | `shared.domain` (value objects puros, sin frameworks); nada más del proyecto (+ `lombok`) | `infrastructure`, `interfaces`, `shared.rest`, `org.springframework.*`, `org.mapstruct.*` |
+| `domain`          | `shared.domain` (value objects puros, sin frameworks); nada más del proyecto (+ `lombok`); excepción puntual: `org.springframework.stereotype.Service`/`org.springframework.transaction.annotation.Transactional` en `ProductService` (anotaciones de inyección/transacciones, no Spring MVC) | `infrastructure`, `interfaces`, `shared.rest`, `org.springframework.web.*`/`org.springframework.data.*` (Spring MVC/Data), `org.mapstruct.*` |
 | `shared.domain`   | nada del proyecto (solo `lombok`, si acaso) | `domain`, `infrastructure`, `interfaces`, `shared.rest`, cualquier framework |
 | `shared.rest`     | `shared.domain` (p. ej. `PageHeaders` lee un `PageResult<?>`); Spring MVC, Jackson, Bean Validation (nada de ningún agregado) | `domain`, `infrastructure`, `interfaces` de cualquier feature |
 | `interfaces`      | `domain`, `shared` (domain + rest), Spring MVC | `infrastructure`, `org.springframework.data.jpa.*` |
@@ -163,21 +163,27 @@ infrastructure/persistence/ProductEntity.java            (JPA annotated)
 | Origen                          | Destino              | Quién mapea                  | Dónde vive                                |
 |---------------------------------|----------------------|------------------------------|-------------------------------------------|
 | HTTP JSON                       | `ProductRequest`     | Jackson (auto)               | `interfaces.rest.dto`                     |
-| `ProductRequest`                | `CreateProductCommand` / `UpdateProductCommand` | `ProductRestMapper.toCreateCommand` / `toUpdateCommand` | `interfaces.rest.mapper` (MapStruct) |
-| `CreateProductCommand` / `UpdateProductCommand` | `Product` | `ProductMapper.toDomain`     | `domain.port` (MapStruct, mismo paquete) |
-| `UpdateProductCommand`          | `Product` (update)   | `ProductMapper.applyUpdate`  | `domain.port` (default method)            |
-| `Product`                       | `ProductEntity`      | `ProductEntityMapper.toEntity` | `infrastructure.persistence` (MapStruct) |
-| `ProductEntity`                 | `Product`            | `ProductEntityMapper.toDomain` | `infrastructure.persistence` (MapStruct) |
-| `Product`                       | `ProductResponse`    | `ProductRestMapper.toResponse` | `interfaces.rest.mapper` (MapStruct)      |
-| `ProductQueryRequest`           | `ProductSearchCriteria` | `ProductRestMapper.toCriteria` | `interfaces.rest.mapper` (MapStruct, campo a campo — ambos son solo filtros) |
+| `ProductRequest`                | `CreateProductCommand` / `UpdateProductCommand` | `ProductRestMapper.toCreateCommand` / `toUpdateCommand` | `interfaces.rest.mapper` (puerto) / `infrastructure.rest.ProductRestMapperAdapter` (impl MapStruct) |
+| `CreateProductCommand` / `UpdateProductCommand` | `Product` | `ProductMapper.toDomain`     | `domain.port` (puerto) / `infrastructure.persistence.ProductMapperAdapter` (impl MapStruct) |
+| `UpdateProductCommand`          | `Product` (update)   | `ProductMapper.applyUpdate`  | `domain.port` (default method, sin MapStruct — ver más abajo) |
+| `Product`                       | `ProductEntity`      | `ProductEntityMapper.toEntity` | `infrastructure.persistence` (interface + impl MapStruct, mismo paquete) |
+| `ProductEntity`                 | `Product`            | `ProductEntityMapper.toDomain` | `infrastructure.persistence` (interface + impl MapStruct, mismo paquete) |
+| `Product`                       | `ProductResponse`    | `ProductRestMapper.toResponse` | `interfaces.rest.mapper` (puerto) / `infrastructure.rest.ProductRestMapperAdapter` (impl MapStruct) |
+| `ProductQueryRequest`           | `ProductSearchCriteria` | `ProductRestMapper.toCriteria` | igual que la fila anterior (campo a campo — ambos son solo filtros) |
 | `ProductSearchCriteria`         | `Specification<ProductEntity>` | `ProductSpecifications.from` | `infrastructure.persistence` (manual, no MapStruct) |
-| `List<Product>` (`result.content()`) | `List<ProductResponse>` | `ProductRestMapper.toResponseList` | `interfaces.rest.mapper` (MapStruct, reutiliza `toResponse` elemento a elemento; usado por `findAll` y `query`, paging va en cabeceras vía `PageHeaders`) |
+| `List<Product>` (`result.content()`) | `List<ProductResponse>` | `ProductRestMapper.toResponseList` | igual que `toResponse` (reutiliza el método elemento a elemento; usado por `findAll` y `query`, paging va en cabeceras vía `PageHeaders`) |
 
-Hay **dos mappers** diferentes a propósito:
+Hay **tres mappers** diferentes a propósito — cada uno cubre exactamente una frontera entre capas y ninguno hace el trabajo de otro:
 
-- **`ProductMapper` (en `domain.port`)** mapea Commands → `Product`. Solo lo necesita el caso de uso. Su impl se genera por MapStruct en el mismo paquete.
-- **`ProductEntityMapper` (en `infrastructure.persistence`)** mapea `Product ↔ ProductEntity`. Es un detalle del adaptador JPA — no es un contrato de dominio, por eso no vive en `domain.port`.
-- **`ProductRestMapper` (en `interfaces.rest.mapper`)** mapea `ProductRequest ↔ Command ↔ ProductResponse`. Es el traductor entre HTTP y dominio.
+| Mapper (puerto)            | Cruza la frontera        | Implementación MapStruct (dónde vive el `@Mapper`) | Quién lo inyecta/usa                          |
+|-----------------------------|---------------------------|------------------------------------------------------|------------------------------------------------|
+| `ProductRestMapper` (`interfaces.rest.mapper`) | HTTP ↔ dominio (`ProductRequest`/`ProductQueryRequest`/`ProductResponse` ↔ `Command`/`Product`/`ProductSearchCriteria`) | `ProductRestMapperAdapter` (`infrastructure.rest`) | `ProductController` — es el único punto de entrada/salida HTTP |
+| `ProductMapper` (`domain.port`)                | Command ↔ `Product` (dentro del dominio, sin tocar HTTP ni JPA) | `ProductMapperAdapter` (`infrastructure.persistence`) | `ProductService` — lo necesita para construir/actualizar el agregado a partir de un Command |
+| `ProductEntityMapper` (`infrastructure.persistence`, sin puerto en `domain`) | `Product` ↔ `ProductEntity` (dominio ↔ JPA) | Misma interface, en el mismo paquete (no hay adapter separado: al no ser un contrato de dominio, no necesita vivir tras un puerto) | `ProductRepositoryAdapter` — es el único que conoce `ProductEntity` |
+
+Ningún mapper conoce más de una frontera: `ProductRestMapper` nunca ve `ProductEntity`, y `ProductEntityMapper` nunca ve `ProductRequest`/`ProductResponse`. Por eso hacen falta los tres — fusionar cualquier par obligaría a esa capa a conocer un tipo que no le corresponde (p. ej. `ProductRestMapper` tendría que importar `ProductEntity`, rompiendo la regla de dependencia de `interfaces`).
+
+`ProductMapper` y `ProductRestMapper` son **interfaces de puerto sin anotaciones** (el dominio/interfaces no pueden depender de MapStruct/Spring): cada una tiene un adapter en `infrastructure` que la extiende vacía y añade `@Mapper(componentModel = "spring")` — MapStruct genera la implementación (`ProductMapperAdapterImpl`/`ProductRestMapperAdapterImpl`) a partir de esa interfaz vacía. `ProductEntityMapper` es la excepción: al ser un detalle interno del adaptador JPA sin contrato de dominio, la interface y el `@Mapper` viven juntos, directamente en `infrastructure.persistence`, sin necesidad de un adapter intermedio.
 
 Los timestamps `createdAt`/`updatedAt` los genera Hibernate (`@CreationTimestamp`/`@UpdateTimestamp`) sobre `ProductEntity`. El adapter los copia al dominio al leer, y al actualizar el `id` y los timestamps se preservan vía `Product.withIdAndTimestamps(...)`.
 

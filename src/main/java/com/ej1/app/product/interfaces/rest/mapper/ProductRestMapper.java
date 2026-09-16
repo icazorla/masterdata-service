@@ -4,6 +4,8 @@ import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.port.CreateProductCommand;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
+import com.ej1.app.product.interfaces.rest.dto.BrandRef;
+import com.ej1.app.product.interfaces.rest.dto.CategoryRef;
 import com.ej1.app.product.interfaces.rest.dto.ProductQueryRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductResponse;
@@ -53,4 +55,22 @@ public interface ProductRestMapper {
      * {@code ProductService#search}) — neither type carries them.
      */
     ProductSearchCriteria toCriteria(ProductQueryRequest request);
+
+    /**
+     * Combines {@code categoryId}/{@code categoryName} — two separate fields on
+     * {@link Product}, since the domain references the category aggregate by id only
+     * and carries the name as a read-only display label (see {@link Product}'s
+     * class-level javadoc) — into the single nested {@link CategoryRef} the response
+     * exposes. {@code null} when the product has no category.
+     */
+    default CategoryRef toCategoryRef(Product product) {
+        return product.getCategoryId() == null ? null
+                : new CategoryRef(product.getCategoryId(), product.getCategoryName());
+    }
+
+    /** Mirrors {@link #toCategoryRef(Product)} for {@code brand}/{@link BrandRef}. */
+    default BrandRef toBrandRef(Product product) {
+        return product.getBrandId() == null ? null
+                : new BrandRef(product.getBrandId(), product.getBrandName());
+    }
 }

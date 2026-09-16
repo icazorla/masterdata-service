@@ -41,16 +41,16 @@ public class ProductQueryRequest {
     private @Nullable String sku;
 
     @Size(max = 20)
-    @Schema(description = "Coincidencia parcial sobre la categoría. Admite varios valores: "
-            + "un producto coincide si contiene alguno de ellos (OR).",
-            example = "[\"Periféricos\", \"Pantallas\"]")
-    private @Nullable List<@Size(max = 80) String> category;
+    @Schema(description = "Filtra por id de categoría. Admite varios valores: "
+            + "un producto coincide si su categoría es alguno de ellos (OR).",
+            example = "[1, 2]")
+    private @Nullable List<Long> categoryId;
 
     @Size(max = 20)
-    @Schema(description = "Coincidencia parcial sobre la marca. Admite varios valores: "
-            + "un producto coincide si contiene alguna de ellas (OR).",
-            example = "[\"Logitech\", \"Samsung\"]")
-    private @Nullable List<@Size(max = 80) String> brand;
+    @Schema(description = "Filtra por id de marca. Admite varios valores: "
+            + "un producto coincide si su marca es alguna de ellas (OR).",
+            example = "[3, 4]")
+    private @Nullable List<Long> brandId;
 
     @PositiveOrZero
     @Digits(integer = 10, fraction = 2)

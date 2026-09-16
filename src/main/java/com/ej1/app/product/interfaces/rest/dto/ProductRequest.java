@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
 
@@ -28,7 +29,7 @@ public class ProductRequest {
 
     @Size(max = 2000)
     @Schema(description = "Descripción larga del producto", example = "Switches brown")
-    private String description;
+    private @Nullable String description;
 
     @NotNull
     @Positive
@@ -48,29 +49,29 @@ public class ProductRequest {
 
     @Size(max = 80)
     @Schema(description = "Categoría del producto", example = "Periféricos")
-    private String category;
+    private @Nullable String category;
 
     @Size(max = 80)
     @Schema(description = "Marca del producto", example = "Logitech")
-    private String brand;
+    private @Nullable String brand;
 
     @Size(max = 500)
     @Schema(description = "URL de la imagen del producto")
-    private String imageUrl;
+    private @Nullable String imageUrl;
 
     @Positive
     @Digits(integer = 8, fraction = 3)
     @Schema(description = "Peso en kg", example = "1.200")
-    private BigDecimal weight;
+    private @Nullable BigDecimal weight;
 
     @Size(max = 50)
     @Schema(description = "Dimensiones físicas", example = "45x15x3 cm")
-    private String dimensions;
+    private @Nullable String dimensions;
 
     @Size(max = 500)
     @Schema(description = "Tags separados por coma", example = "teclado,rgb")
-    private String tags;
+    private @Nullable String tags;
 
     @Schema(description = "Si el producto está activo. Por defecto true", example = "true")
-    private Boolean active;
+    private @Nullable Boolean active;
 }

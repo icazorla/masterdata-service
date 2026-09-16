@@ -1,21 +1,23 @@
 package com.ej1.app.product.interfaces.rest.dto;
 
+import org.jspecify.annotations.Nullable;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record ProductResponse(
         Long id,
         String name,
-        String description,
+        @Nullable String description,
         BigDecimal price,
         Integer stock,
         String sku,
-        String category,
-        String brand,
-        String imageUrl,
-        BigDecimal weight,
-        String dimensions,
-        String tags,
+        @Nullable String category,
+        @Nullable String brand,
+        @Nullable String imageUrl,
+        @Nullable BigDecimal weight,
+        @Nullable String dimensions,
+        @Nullable String tags,
         Boolean active,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

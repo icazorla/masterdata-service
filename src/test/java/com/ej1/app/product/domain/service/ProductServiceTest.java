@@ -6,11 +6,12 @@ import com.ej1.app.product.domain.exception.InvalidProductQueryException;
 import com.ej1.app.product.domain.exception.ProductNotFoundException;
 import com.ej1.app.product.domain.port.CreateProductCommand;
 import com.ej1.app.product.domain.port.ProductMapper;
-import com.ej1.app.product.domain.port.ProductPage;
 import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
 import com.ej1.app.product.infrastructure.persistence.ProductMapperAdapter;
+import com.ej1.app.shared.domain.PageResult;
+import com.ej1.app.shared.domain.Paging;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -243,14 +244,15 @@ class ProductServiceTest {
     @DisplayName("search delega en el repositorio y devuelve su resultado")
     void search_delegatesToRepository() {
         ProductSearchCriteria criteria = new ProductSearchCriteria(
-                "teclado", null, null, null, null, null, null, null, 0, 20, "id", "ASC");
-        ProductPage page = new ProductPage(List.of(sample), 0, 20, 1, 1);
-        when(repository.search(criteria)).thenReturn(page);
+                "teclado", null, null, null, null, null, null, null);
+        Paging paging = new Paging(0, 20, "id", "ASC");
+        PageResult<Product> page = new PageResult<>(List.of(sample), 0, 20, 1, 1);
+        when(repository.search(criteria, paging)).thenReturn(page);
 
-        ProductPage result = service.search(criteria);
+        PageResult<Product> result = service.search(criteria, paging);
 
         assertThat(result).isEqualTo(page);
-        verify(repository).search(criteria);
+        verify(repository).search(criteria, paging);
     }
 
     @Test
@@ -258,14 +260,15 @@ class ProductServiceTest {
     void search_throwsWhenMinPriceGreaterThanMaxPrice() {
         ProductSearchCriteria criteria = new ProductSearchCriteria(
                 null, null, null, null, new BigDecimal("100"), new BigDecimal("10"),
-                null, null, 0, 20, "id", "ASC");
+                null, null);
+        Paging paging = new Paging(0, 20, "id", "ASC");
 
-        assertThatThrownBy(() -> service.search(criteria))
+        assertThatThrownBy(() -> service.search(criteria, paging))
                 .isInstanceOf(InvalidProductQueryException.class)
                 .hasMessageContaining("100")
                 .hasMessageContaining("10");
 
-        verify(repository, never()).search(any());
+        verify(repository, never()).search(any(), any());
     }
 
     @Test
@@ -273,11 +276,12 @@ class ProductServiceTest {
     void search_allowsMinPriceEqualToMaxPrice() {
         ProductSearchCriteria criteria = new ProductSearchCriteria(
                 null, null, null, null, new BigDecimal("50"), new BigDecimal("50"),
-                null, null, 0, 20, "id", "ASC");
-        ProductPage page = new ProductPage(List.of(), 0, 20, 0, 0);
-        when(repository.search(criteria)).thenReturn(page);
+                null, null);
+        Paging paging = new Paging(0, 20, "id", "ASC");
+        PageResult<Product> page = new PageResult<>(List.of(), 0, 20, 0, 0);
+        when(repository.search(criteria, paging)).thenReturn(page);
 
-        ProductPage result = service.search(criteria);
+        PageResult<Product> result = service.search(criteria, paging);
 
         assertThat(result.content()).isEmpty();
     }
@@ -286,13 +290,14 @@ class ProductServiceTest {
     @DisplayName("search lanza InvalidProductQueryException cuando sortBy no es un campo ordenable")
     void search_throwsWhenSortByIsUnknown() {
         ProductSearchCriteria criteria = new ProductSearchCriteria(
-                null, null, null, null, null, null, null, null, 0, 20, "notAField", "ASC");
+                null, null, null, null, null, null, null, null);
+        Paging paging = new Paging(0, 20, "notAField", "ASC");
 
-        assertThatThrownBy(() -> service.search(criteria))
+        assertThatThrownBy(() -> service.search(criteria, paging))
                 .isInstanceOf(InvalidProductQueryException.class)
                 .hasMessageContaining("notAField");
 
-        verify(repository, never()).search(any());
+        verify(repository, never()).search(any(), any());
     }
 
     @Test

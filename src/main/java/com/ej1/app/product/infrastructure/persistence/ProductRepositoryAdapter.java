@@ -1,9 +1,10 @@
 package com.ej1.app.product.infrastructure.persistence;
 
 import com.ej1.app.product.domain.Product;
-import com.ej1.app.product.domain.port.ProductPage;
 import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
+import com.ej1.app.shared.domain.PageResult;
+import com.ej1.app.shared.domain.Paging;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -50,11 +51,11 @@ public class ProductRepositoryAdapter implements ProductRepository {
     }
 
     @Override
-    public ProductPage search(ProductSearchCriteria criteria) {
-        Sort sort = Sort.by(Sort.Direction.fromString(criteria.sortDirection()), criteria.sortBy());
-        Pageable pageable = PageRequest.of(criteria.page(), criteria.size(), sort);
+    public PageResult<Product> search(ProductSearchCriteria criteria, Paging paging) {
+        Sort sort = Sort.by(Sort.Direction.fromString(paging.sortDirection()), paging.sortBy());
+        Pageable pageable = PageRequest.of(paging.page(), paging.size(), sort);
         var result = jpa.findAll(ProductSpecifications.from(criteria), pageable);
-        return new ProductPage(
+        return new PageResult<>(
                 result.getContent().stream().map(mapper::toDomain).toList(),
                 result.getNumber(),
                 result.getSize(),

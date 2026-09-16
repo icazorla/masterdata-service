@@ -14,9 +14,13 @@ import java.util.List;
  * {@code category}/{@code brand} accept several values — a product matches
  * when it case-insensitively contains <em>any</em> of the given values (OR'd
  * together), and that group is then AND'd with the other filters, same as a
- * single value would be. {@code page}/{@code size}/{@code sortBy}/
- * {@code sortDirection} are always present — defaults are resolved by the
- * REST layer before the domain ever sees this record.
+ * single value would be.
+ *
+ * <p>Deliberately carries no paging/sort: <em>what</em> matches (this record)
+ * and <em>how to page/order the result</em> ({@code com.ej1.app.shared.domain.Paging})
+ * are independent concerns, passed as separate parameters wherever both are
+ * needed (see {@code ProductRepository#search}/{@code ProductService#search}) —
+ * one object, one field of truth for each.
  */
 public record ProductSearchCriteria(
         String name,
@@ -26,10 +30,6 @@ public record ProductSearchCriteria(
         BigDecimal minPrice,
         BigDecimal maxPrice,
         Boolean active,
-        String tags,
-        int page,
-        int size,
-        String sortBy,
-        String sortDirection
+        String tags
 ) {
 }

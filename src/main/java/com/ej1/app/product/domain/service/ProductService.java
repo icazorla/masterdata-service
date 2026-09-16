@@ -6,10 +6,12 @@ import com.ej1.app.product.domain.exception.InvalidProductQueryException;
 import com.ej1.app.product.domain.exception.ProductNotFoundException;
 import com.ej1.app.product.domain.port.CreateProductCommand;
 import com.ej1.app.product.domain.port.ProductMapper;
-import com.ej1.app.product.domain.port.ProductPage;
 import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
+import com.ej1.app.shared.domain.PageResult;
+import com.ej1.app.shared.domain.Paging;
+import com.ej1.app.shared.domain.SortableFieldValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,13 +28,20 @@ public class ProductService {
 
     /**
      * Field names {@code search} accepts for {@code sortBy}. Lives here, not on
-     * {@link ProductSearchCriteria} or the shared {@code PagingRequest} DTO, because it's
-     * knowledge about the {@code Product} aggregate specifically — a future entity's
-     * service would declare its own set. Sorting by an unlisted field is rejected as a
-     * business rule (422), the same way {@code minPrice > maxPrice} is below, rather than
-     * as a single-field format constraint — see {@code PagingRequest.sortBy}'s javadoc.
+     * {@link ProductSearchCriteria}, because it's knowledge about the {@code Product}
+     * aggregate specifically — a future entity's service would declare its own set.
+     * Sorting by an unlisted field is rejected as a business rule (422), the same way
+     * {@code minPrice > maxPrice} is below, rather than as a single-field format constraint —
+     * enforced via the shared {@link SortableFieldValidator}, which owns only the
+     * check-and-throw mechanics, not this set or the exception type.
+     *
+     * <p>Package-private (not {@code private}) purely so a same-package test can verify, via
+     * reflection over {@link Product}, that every name here still names a real getter — nothing
+     * here ties this {@code Set<String>} to {@code Product}'s actual fields at compile time, so a
+     * rename would otherwise desync silently until it broke at runtime. See
+     * {@code ProductServiceSortFieldsTest}.
      */
-    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+    static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
             "id", "name", "price", "stock", "sku", "category", "brand", "createdAt", "updatedAt");
 
     private final ProductRepository repository;
@@ -73,27 +82,26 @@ public class ProductService {
     }
 
     /**
-     * Filtered, sorted, paginated product search. Validates business rules that a
-     * single-field Bean Validation constraint cannot express (see
+     * Filtered, sorted, paginated product search. {@code criteria} carries only filters;
+     * {@code paging} carries page/size/sort, passed separately so each is a single source
+     * of truth for its own concern (see {@link ProductSearchCriteria}). Validates business
+     * rules that a single-field Bean Validation constraint cannot express (see
      * {@link InvalidProductQueryException}) — {@code page}/{@code size} bounds and
      * {@code sortDirection} being {@code ASC}/{@code DESC} are already guaranteed
      * well-formed by the REST layer's Bean Validation; {@code sortBy} naming an actual
      * sortable field is Product-specific business knowledge, so it's checked here instead.
      */
     @Transactional(readOnly = true)
-    public ProductPage search(ProductSearchCriteria criteria) {
+    public PageResult<Product> search(ProductSearchCriteria criteria, Paging paging) {
         if (criteria.minPrice() != null && criteria.maxPrice() != null
                 && criteria.minPrice().compareTo(criteria.maxPrice()) > 0) {
             throw new InvalidProductQueryException(
                     "minPrice (%s) must not be greater than maxPrice (%s)"
                             .formatted(criteria.minPrice(), criteria.maxPrice()));
         }
-        if (!ALLOWED_SORT_FIELDS.contains(criteria.sortBy())) {
-            throw new InvalidProductQueryException(
-                    "sortBy '%s' is not sortable. Allowed values: %s"
-                            .formatted(criteria.sortBy(), ALLOWED_SORT_FIELDS));
-        }
-        return repository.search(criteria);
+        SortableFieldValidator.requireSortable(paging.sortBy(), ALLOWED_SORT_FIELDS,
+                InvalidProductQueryException::new);
+        return repository.search(criteria, paging);
     }
 
     @Transactional

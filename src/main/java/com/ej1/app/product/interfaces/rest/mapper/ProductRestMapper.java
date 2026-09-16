@@ -2,13 +2,13 @@ package com.ej1.app.product.interfaces.rest.mapper;
 
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.port.CreateProductCommand;
-import com.ej1.app.product.domain.port.ProductPage;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
-import com.ej1.app.product.interfaces.rest.dto.ProductPageResponse;
 import com.ej1.app.product.interfaces.rest.dto.ProductQueryRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductResponse;
+
+import java.util.List;
 
 /**
  * REST mapper port. Translates between HTTP DTOs ({@link ProductRequest},
@@ -24,6 +24,14 @@ public interface ProductRestMapper {
 
     ProductResponse toResponse(Product product);
 
+    /**
+     * Maps each element with {@link #toResponse(Product)}. Used by every paginated listing
+     * endpoint ({@code ProductController.findAll}/{@code query}), whose body is the plain
+     * result list — paging metadata travels in response headers instead of a wrapper record
+     * (see {@code com.ej1.app.shared.rest.PageHeaders}).
+     */
+    List<ProductResponse> toResponseList(List<Product> products);
+
     CreateProductCommand toCreateCommand(ProductRequest request);
 
     UpdateProductCommand toUpdateCommand(ProductRequest request);
@@ -38,15 +46,11 @@ public interface ProductRestMapper {
     ProductRequest toRequest(Product product);
 
     /**
-     * Translates the HTTP query body ({@link ProductQueryRequest}) into the
+     * Translates the HTTP query body ({@link ProductQueryRequest}, filters only) into the
      * domain's {@link ProductSearchCriteria} — mirrors {@link #toCreateCommand}/
-     * {@link #toUpdateCommand} for the query use case.
+     * {@link #toUpdateCommand} for the query use case. Paging/sort travel separately (as
+     * query params on the controller side, and as their own parameter on
+     * {@code ProductService#search}) — neither type carries them.
      */
     ProductSearchCriteria toCriteria(ProductQueryRequest request);
-
-    /**
-     * Projects a {@link ProductPage} onto its HTTP representation. Element mapping
-     * reuses {@link #toResponse(Product)}.
-     */
-    ProductPageResponse toPageResponse(ProductPage page);
 }

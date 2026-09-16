@@ -1,9 +1,10 @@
 package com.ej1.app.product.infrastructure.persistence;
 
 import com.ej1.app.product.domain.Product;
-import com.ej1.app.product.domain.port.ProductPage;
 import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
+import com.ej1.app.shared.domain.PageResult;
+import com.ej1.app.shared.domain.Paging;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -143,9 +144,9 @@ class ProductRepositoryAdapterTest {
                 .name("Monitor").price(new BigDecimal("199.99")).stock(3).sku("MN-001")
                 .category("Pantallas").active(true).build());
 
-        ProductPage result = adapter.search(new ProductSearchCriteria(
-                null, null, List.of("periférico"), null, null, null, null, null,
-                0, 20, "id", "ASC"));
+        PageResult<Product> result = adapter.search(new ProductSearchCriteria(
+                null, null, List.of("periférico"), null, null, null, null, null),
+                new Paging(0, 20, "id", "ASC"));
 
         assertThat(result.totalElements()).isEqualTo(2);
         assertThat(result.content()).extracting(Product::getSku).containsExactlyInAnyOrder("KB-001", "MS-001");
@@ -165,9 +166,9 @@ class ProductRepositoryAdapterTest {
                 .name("Cable").price(new BigDecimal("9.99")).stock(100).sku("CB-001")
                 .category("Cables").active(true).build());
 
-        ProductPage result = adapter.search(new ProductSearchCriteria(
-                null, null, List.of("periférico", "pantalla"), null, null, null, null, null,
-                0, 20, "id", "ASC"));
+        PageResult<Product> result = adapter.search(new ProductSearchCriteria(
+                null, null, List.of("periférico", "pantalla"), null, null, null, null, null),
+                new Paging(0, 20, "id", "ASC"));
 
         assertThat(result.totalElements()).isEqualTo(3);
         assertThat(result.content()).extracting(Product::getSku)
@@ -183,9 +184,9 @@ class ProductRepositoryAdapterTest {
         adapter.save(Product.builder()
                 .name("Monitor").price(new BigDecimal("199.99")).stock(3).sku("MN-001").active(true).build());
 
-        ProductPage result = adapter.search(new ProductSearchCriteria(
-                null, null, null, null, new BigDecimal("50"), new BigDecimal("100"), null, null,
-                0, 20, "id", "ASC"));
+        PageResult<Product> result = adapter.search(new ProductSearchCriteria(
+                null, null, null, null, new BigDecimal("50"), new BigDecimal("100"), null, null),
+                new Paging(0, 20, "id", "ASC"));
 
         assertThat(result.content()).extracting(Product::getSku).containsExactly("KB-001");
     }
@@ -197,9 +198,9 @@ class ProductRepositoryAdapterTest {
         adapter.save(Product.builder()
                 .name("Descatalogado").price(new BigDecimal("9.99")).stock(0).sku("OLD-001").active(false).build());
 
-        ProductPage result = adapter.search(new ProductSearchCriteria(
-                null, null, null, null, null, null, false, null,
-                0, 20, "id", "ASC"));
+        PageResult<Product> result = adapter.search(new ProductSearchCriteria(
+                null, null, null, null, null, null, false, null),
+                new Paging(0, 20, "id", "ASC"));
 
         assertThat(result.content()).extracting(Product::getSku).containsExactly("OLD-001");
     }
@@ -213,17 +214,17 @@ class ProductRepositoryAdapterTest {
         adapter.save(Product.builder()
                 .name("Monitor").price(new BigDecimal("199.99")).stock(3).sku("MN-001").active(true).build());
 
-        ProductPage firstPage = adapter.search(new ProductSearchCriteria(
-                null, null, null, null, null, null, null, null,
-                0, 2, "price", "ASC"));
+        PageResult<Product> firstPage = adapter.search(new ProductSearchCriteria(
+                null, null, null, null, null, null, null, null),
+                new Paging(0, 2, "price", "ASC"));
 
         assertThat(firstPage.totalElements()).isEqualTo(3);
         assertThat(firstPage.totalPages()).isEqualTo(2);
         assertThat(firstPage.content()).extracting(Product::getSku).containsExactly("MS-001", "KB-001");
 
-        ProductPage secondPage = adapter.search(new ProductSearchCriteria(
-                null, null, null, null, null, null, null, null,
-                1, 2, "price", "ASC"));
+        PageResult<Product> secondPage = adapter.search(new ProductSearchCriteria(
+                null, null, null, null, null, null, null, null),
+                new Paging(1, 2, "price", "ASC"));
 
         assertThat(secondPage.content()).extracting(Product::getSku).containsExactly("MN-001");
     }
@@ -233,9 +234,9 @@ class ProductRepositoryAdapterTest {
     void search_returnsEmptyPageWhenNoMatches() {
         adapter.save(sample);
 
-        ProductPage result = adapter.search(new ProductSearchCriteria(
-                null, null, List.of("no-existe"), null, null, null, null, null,
-                0, 20, "id", "ASC"));
+        PageResult<Product> result = adapter.search(new ProductSearchCriteria(
+                null, null, List.of("no-existe"), null, null, null, null, null),
+                new Paging(0, 20, "id", "ASC"));
 
         assertThat(result.content()).isEmpty();
         assertThat(result.totalElements()).isZero();

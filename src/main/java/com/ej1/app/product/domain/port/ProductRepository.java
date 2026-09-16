@@ -1,6 +1,8 @@
 package com.ej1.app.product.domain.port;
 
 import com.ej1.app.product.domain.Product;
+import com.ej1.app.shared.domain.PageResult;
+import com.ej1.app.shared.domain.Paging;
 
 import java.util.Optional;
 
@@ -23,8 +25,9 @@ public interface ProductRepository {
     void deleteById(Long id);
 
     /**
-     * Runs a filtered, sorted, paginated search. See {@link ProductSearchCriteria}
-     * for the query shape.
+     * Runs a filtered, sorted, paginated search. {@code criteria} carries only filters
+     * (see {@link ProductSearchCriteria}); {@code paging} carries page/size/sort — kept
+     * separate so each is a single source of truth for its own concern.
      */
-    ProductPage search(ProductSearchCriteria criteria);
+    PageResult<Product> search(ProductSearchCriteria criteria, Paging paging);
 }

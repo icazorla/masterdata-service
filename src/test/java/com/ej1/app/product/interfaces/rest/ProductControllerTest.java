@@ -5,7 +5,6 @@ import com.ej1.app.product.domain.exception.DuplicateSkuException;
 import com.ej1.app.product.domain.exception.InvalidProductQueryException;
 import com.ej1.app.product.domain.exception.ProductNotFoundException;
 import com.ej1.app.product.domain.port.CreateProductCommand;
-import com.ej1.app.product.domain.port.ProductPage;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
 import com.ej1.app.product.domain.service.ProductService;
@@ -14,7 +13,8 @@ import com.ej1.app.product.infrastructure.rest.ProductRestMapperAdapterImpl;
 import com.ej1.app.product.interfaces.rest.dto.ProductQueryRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductRequest;
 import com.ej1.app.product.interfaces.rest.mapper.ProductRestMapper;
-import com.ej1.app.shared.rest.dto.PagingRequest;
+import com.ej1.app.shared.domain.PageResult;
+import com.ej1.app.shared.domain.Paging;
 import com.ej1.app.shared.rest.exception.JsonPatchExceptionHandler;
 import com.ej1.app.shared.rest.patch.JsonPatchApplier;
 import org.junit.jupiter.api.Test;
@@ -91,33 +91,34 @@ class ProductControllerTest {
     }
 
     @Test
-    void getAll_returns200WithPagedResults() throws Exception {
-        ProductPage page = new ProductPage(List.of(buildEntity(1L, "KB-001")), 0, 20, 1, 1);
-        when(service.search(any(ProductSearchCriteria.class))).thenReturn(page);
+    void getAll_returns200WithResultListAndPageHeaders() throws Exception {
+        PageResult<Product> page = new PageResult<>(List.of(buildEntity(1L, "KB-001")), 0, 20, 1, 1);
+        when(service.search(any(ProductSearchCriteria.class), any(Paging.class))).thenReturn(page);
 
         mockMvc.perform(get("/api/products"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.content[0].id").value(1))
-                .andExpect(jsonPath("$.content[0].sku").value("KB-001"))
-                .andExpect(jsonPath("$.content[0].active").value(true))
-                .andExpect(jsonPath("$.page").value(0))
-                .andExpect(jsonPath("$.size").value(20))
-                .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.totalPages").value(1));
+                .andExpect(header().string("X-Total-Count", "1"))
+                .andExpect(header().string("X-Page-Number", "0"))
+                .andExpect(header().string("X-Page-Size", "20"))
+                .andExpect(header().string("X-Total-Pages", "1"))
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].sku").value("KB-001"))
+                .andExpect(jsonPath("$[0].active").value(true));
     }
 
     @Test
     void getAll_honoursPageAndSizeParams() throws Exception {
-        ProductPage page = new ProductPage(List.of(), 2, 5, 0, 0);
-        when(service.search(any(ProductSearchCriteria.class))).thenReturn(page);
+        PageResult<Product> page = new PageResult<>(List.of(), 2, 5, 0, 0);
+        when(service.search(any(ProductSearchCriteria.class), any(Paging.class))).thenReturn(page);
 
         mockMvc.perform(get("/api/products").param("page", "2").param("size", "5"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.page").value(2))
-                .andExpect(jsonPath("$.size").value(5));
+                .andExpect(header().string("X-Page-Number", "2"))
+                .andExpect(header().string("X-Page-Size", "5"));
 
-        verify(service).search(argThat(criteria -> criteria.page() == 2 && criteria.size() == 5));
+        verify(service).search(any(), argThat(paging -> paging.page() == 2 && paging.size() == 5));
     }
 
     @Test
@@ -129,7 +130,7 @@ class ProductControllerTest {
 
     @Test
     void getAll_returns422WhenSortByIsUnknown() throws Exception {
-        when(service.search(any(ProductSearchCriteria.class)))
+        when(service.search(any(ProductSearchCriteria.class), any(Paging.class)))
                 .thenThrow(new InvalidProductQueryException("sortBy 'notAField' is not sortable. Allowed values: [...]"));
 
         mockMvc.perform(get("/api/products").param("sortBy", "notAField"))
@@ -229,9 +230,9 @@ class ProductControllerTest {
     }
 
     @Test
-    void query_returns200WithPagedResults() throws Exception {
-        ProductPage page = new ProductPage(List.of(buildEntity(1L, "KB-001")), 0, 20, 1, 1);
-        when(service.search(any(ProductSearchCriteria.class))).thenReturn(page);
+    void query_returns200WithResultListAndPageHeaders() throws Exception {
+        PageResult<Product> page = new PageResult<>(List.of(buildEntity(1L, "KB-001")), 0, 20, 1, 1);
+        when(service.search(any(ProductSearchCriteria.class), any(Paging.class))).thenReturn(page);
 
         mockMvc.perform(post("/api/products/query")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -241,62 +242,64 @@ class ProductControllerTest {
                                 .build())))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Accept-Query", "application/json"))
-                .andExpect(jsonPath("$.content[0].sku").value("KB-001"))
-                .andExpect(jsonPath("$.page").value(0))
-                .andExpect(jsonPath("$.size").value(20))
-                .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.totalPages").value(1));
+                .andExpect(header().string("X-Total-Count", "1"))
+                .andExpect(header().string("X-Page-Number", "0"))
+                .andExpect(header().string("X-Page-Size", "20"))
+                .andExpect(header().string("X-Total-Pages", "1"))
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].sku").value("KB-001"));
     }
 
     @Test
     void query_returns200WithDefaultsWhenBodyIsEmptyObject() throws Exception {
-        when(service.search(any(ProductSearchCriteria.class)))
-                .thenReturn(new ProductPage(List.of(), 0, 20, 0, 0));
+        when(service.search(any(ProductSearchCriteria.class), any(Paging.class)))
+                .thenReturn(new PageResult<>(List.of(), 0, 20, 0, 0));
 
         mockMvc.perform(post("/api/products/query")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content").isArray())
-                .andExpect(jsonPath("$.totalElements").value(0));
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$").isEmpty())
+                .andExpect(header().string("X-Total-Count", "0"));
     }
 
     @Test
     void query_returns400WhenSizeExceedsMax() throws Exception {
         mockMvc.perform(post("/api/products/query")
+                        .param("size", "500")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(ProductQueryRequest.builder()
-                                .page(PagingRequest.builder().size(500).build())
-                                .build())))
+                        .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
     }
 
     @Test
-    void query_returns200WhenPageIsGroupedInJson() throws Exception {
-        ProductPage page = new ProductPage(List.of(), 2, 5, 0, 0);
-        when(service.search(any(ProductSearchCriteria.class))).thenReturn(page);
+    void query_honoursPageAndSizeParams() throws Exception {
+        PageResult<Product> page = new PageResult<>(List.of(), 2, 5, 0, 0);
+        when(service.search(any(ProductSearchCriteria.class), any(Paging.class))).thenReturn(page);
 
         mockMvc.perform(post("/api/products/query")
+                        .param("page", "2")
+                        .param("size", "5")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"page\":{\"number\":2,\"size\":5}}"))
+                        .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.page").value(2))
-                .andExpect(jsonPath("$.size").value(5));
+                .andExpect(header().string("X-Page-Number", "2"))
+                .andExpect(header().string("X-Page-Size", "5"));
 
-        verify(service).search(argThat(criteria -> criteria.page() == 2 && criteria.size() == 5));
+        verify(service).search(any(), argThat(paging -> paging.page() == 2 && paging.size() == 5));
     }
 
     @Test
     void query_returns422WhenSortByIsUnknown() throws Exception {
-        when(service.search(any(ProductSearchCriteria.class)))
+        when(service.search(any(ProductSearchCriteria.class), any(Paging.class)))
                 .thenThrow(new InvalidProductQueryException("sortBy 'notAField' is not sortable. Allowed values: [...]"));
 
         mockMvc.perform(post("/api/products/query")
+                        .param("sortBy", "notAField")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(ProductQueryRequest.builder()
-                                .page(PagingRequest.builder().sortBy("notAField").build())
-                                .build())))
+                        .content("{}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.status").value(422));
     }
@@ -312,7 +315,7 @@ class ProductControllerTest {
 
     @Test
     void query_returns422WhenMinPriceGreaterThanMaxPrice() throws Exception {
-        when(service.search(any(ProductSearchCriteria.class)))
+        when(service.search(any(ProductSearchCriteria.class), any(Paging.class)))
                 .thenThrow(new InvalidProductQueryException("minPrice (100) must not be greater than maxPrice (10)"));
 
         mockMvc.perform(post("/api/products/query")

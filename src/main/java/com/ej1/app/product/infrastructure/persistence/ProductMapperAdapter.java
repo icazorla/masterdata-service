@@ -1,9 +1,6 @@
 package com.ej1.app.product.infrastructure.persistence;
 
-import com.ej1.app.product.domain.port.CreateProductCommand;
 import com.ej1.app.product.domain.port.ProductMapper;
-import com.ej1.app.product.domain.port.UpdateProductCommand;
-import com.ej1.app.product.domain.Product;
 import org.mapstruct.Mapper;
 
 /**

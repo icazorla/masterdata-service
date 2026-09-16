@@ -3,11 +3,12 @@ package com.ej1.app.product.interfaces.rest;
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.service.ProductService;
-import com.ej1.app.product.interfaces.rest.dto.ProductPageResponse;
 import com.ej1.app.product.interfaces.rest.dto.ProductQueryRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductResponse;
 import com.ej1.app.product.interfaces.rest.mapper.ProductRestMapper;
+import com.ej1.app.shared.domain.Paging;
+import com.ej1.app.shared.rest.PageHeaders;
 import com.ej1.app.shared.rest.patch.JsonPatchApplier;
 import com.ej1.app.shared.rest.patch.JsonPatchOperation;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,13 +53,22 @@ public class ProductController {
     private final JsonPatchApplier jsonPatchApplier;
 
     @GetMapping
-    @Operation(summary = "Listar productos", description = "Devuelve los productos existentes, paginados y sin filtrar.")
+    @Operation(summary = "Listar productos", description = "Devuelve los productos existentes, paginados y sin filtrar. "
+            + "El cuerpo de la respuesta es la lista de productos sin envolver; los metadatos de página viajan en las "
+            + "cabeceras X-Total-Count, X-Page-Number, X-Page-Size y X-Total-Pages — mismo formato que "
+            + "POST /api/products/query.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Listado obtenido correctamente"),
+            @ApiResponse(responseCode = "200", description = "Listado obtenido correctamente",
+                    headers = {
+                            @io.swagger.v3.oas.annotations.headers.Header(name = "X-Total-Count", description = "Total de elementos que cumplen los criterios", schema = @Schema(type = "integer", format = "int64")),
+                            @io.swagger.v3.oas.annotations.headers.Header(name = "X-Page-Number", description = "Página devuelta (0-based)", schema = @Schema(type = "integer")),
+                            @io.swagger.v3.oas.annotations.headers.Header(name = "X-Page-Size", description = "Tamaño de página aplicado", schema = @Schema(type = "integer")),
+                            @io.swagger.v3.oas.annotations.headers.Header(name = "X-Total-Pages", description = "Total de páginas", schema = @Schema(type = "integer"))
+                    }),
             @ApiResponse(responseCode = "400", description = "page/size/sortDirection con formato inválido", content = @Content),
             @ApiResponse(responseCode = "422", description = "sortBy no es un campo ordenable de producto", content = @Content)
     })
-    public ResponseEntity<ProductPageResponse> findAll(
+    public ResponseEntity<List<ProductResponse>> findAll(
             @Parameter(description = "Página solicitada (0-based)")
             @RequestParam(defaultValue = "0") @PositiveOrZero int page,
             @Parameter(description = "Tamaño de página (1-100)")
@@ -70,10 +80,11 @@ public class ProductController {
             @RequestParam(defaultValue = "ASC")
             @Pattern(regexp = "ASC|DESC", message = "sortDirection debe ser ASC o DESC")
             String sortDirection) {
-        var criteria = new ProductSearchCriteria(null, null, null, null, null, null, null, null,
-                page, size, sortBy, sortDirection);
-        var result = service.search(criteria);
-        return ResponseEntity.ok(mapper.toPageResponse(result));
+        var criteria = new ProductSearchCriteria(null, null, null, null, null, null, null, null);
+        var result = service.search(criteria, new Paging(page, size, sortBy, sortDirection));
+        return ResponseEntity.ok()
+                .headers(PageHeaders.of(result))
+                .body(mapper.toResponseList(result.content()));
     }
 
     @GetMapping("/{id}")
@@ -98,24 +109,45 @@ public class ProductController {
 
     @PostMapping("/query")
     @Operation(summary = "Buscar productos (RFC 10008 — semántica HTTP QUERY sobre POST)",
-            description = "Ejecuta una búsqueda de productos cuyos criterios viajan en el cuerpo de la petición "
+            description = "Ejecuta una búsqueda de productos cuyos filtros viajan en el cuerpo de la petición "
                     + "en vez de en la URL, siguiendo la semántica del método HTTP QUERY definido en "
                     + "[RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html) (safe, idempotente, consulta con cuerpo). "
                     + "Expuesta sobre POST porque Spring Framework aún no soporta el verbo QUERY de forma nativa "
-                    + "(llega en Spring Framework 7.1). Todos los filtros son opcionales y se combinan con AND; "
-                    + "el resultado va paginado.")
+                    + "(llega en Spring Framework 7.1). Todos los filtros del cuerpo son opcionales y se combinan con AND; "
+                    + "la paginación y el orden viajan como query params, igual que en el listado paginado. El cuerpo de "
+                    + "la respuesta es la lista de productos sin envolver; los metadatos de página viajan en las "
+                    + "cabeceras X-Total-Count, X-Page-Number, X-Page-Size y X-Total-Pages.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Consulta ejecutada correctamente"),
-            @ApiResponse(responseCode = "400", description = "Payload inválido (tipos, tamaño de página, sortDirection distinto de ASC/DESC...)", content = @Content),
+            @ApiResponse(responseCode = "200", description = "Consulta ejecutada correctamente",
+                    headers = {
+                            @io.swagger.v3.oas.annotations.headers.Header(name = "X-Total-Count", description = "Total de elementos que cumplen los criterios", schema = @Schema(type = "integer", format = "int64")),
+                            @io.swagger.v3.oas.annotations.headers.Header(name = "X-Page-Number", description = "Página devuelta (0-based)", schema = @Schema(type = "integer")),
+                            @io.swagger.v3.oas.annotations.headers.Header(name = "X-Page-Size", description = "Tamaño de página aplicado", schema = @Schema(type = "integer")),
+                            @io.swagger.v3.oas.annotations.headers.Header(name = "X-Total-Pages", description = "Total de páginas", schema = @Schema(type = "integer"))
+                    }),
+            @ApiResponse(responseCode = "400", description = "Payload o query params inválidos (tipos, tamaño de página, sortDirection distinto de ASC/DESC...)", content = @Content),
             @ApiResponse(responseCode = "415", description = "Content-Type no soportado", content = @Content),
             @ApiResponse(responseCode = "422", description = "Consulta sintácticamente válida pero semánticamente inconsistente (p. ej. minPrice > maxPrice, o sortBy no es un campo ordenable de producto)", content = @Content)
     })
-    public ResponseEntity<ProductPageResponse> query(@Valid @RequestBody ProductQueryRequest request) {
+    public ResponseEntity<List<ProductResponse>> query(
+            @Parameter(description = "Página solicitada (0-based)")
+            @RequestParam(defaultValue = "0") @PositiveOrZero int page,
+            @Parameter(description = "Tamaño de página (1-100)")
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @Parameter(description = "Campo de ordenación. Valores válidos: id, name, price, stock, sku, "
+                    + "category, brand, createdAt, updatedAt (se valida como regla de negocio, no de formato — 422 si no es válido).")
+            @RequestParam(defaultValue = "id") String sortBy,
+            @Parameter(description = "Dirección de ordenación")
+            @RequestParam(defaultValue = "ASC")
+            @Pattern(regexp = "ASC|DESC", message = "sortDirection debe ser ASC o DESC")
+            String sortDirection,
+            @Valid @RequestBody ProductQueryRequest request) {
         var criteria = mapper.toCriteria(request);
-        var result = service.search(criteria);
+        var result = service.search(criteria, new Paging(page, size, sortBy, sortDirection));
         return ResponseEntity.ok()
                 .header("Accept-Query", "application/json")
-                .body(mapper.toPageResponse(result));
+                .headers(PageHeaders.of(result))
+                .body(mapper.toResponseList(result.content()));
     }
 
     @PostMapping

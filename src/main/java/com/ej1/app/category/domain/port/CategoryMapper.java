@@ -1,6 +1,9 @@
 package com.ej1.app.category.domain.port;
 
 import com.ej1.app.category.domain.Category;
+import com.ej1.app.category.domain.CategoryTranslation;
+
+import java.util.List;
 
 /**
  * Domain mapper port. Maps {@link CreateCategoryCommand} / {@link UpdateCategoryCommand}
@@ -16,8 +19,13 @@ public interface CategoryMapper {
 
     default Category applyUpdate(Category existing, UpdateCategoryCommand cmd) {
         return existing.toBuilder()
-                .name(cmd.name())
-                .description(cmd.description())
+                .translations(toTranslations(cmd.translations()))
                 .build();
+    }
+
+    private static List<CategoryTranslation> toTranslations(List<CategoryTranslationCommand> commands) {
+        return commands.stream()
+                .map(c -> new CategoryTranslation(c.locale(), c.name(), c.description()))
+                .toList();
     }
 }

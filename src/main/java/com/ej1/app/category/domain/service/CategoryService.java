@@ -5,6 +5,7 @@ import com.ej1.app.category.domain.exception.CategoryNotFoundException;
 import com.ej1.app.category.domain.exception.DuplicateCategoryNameException;
 import com.ej1.app.category.domain.port.CategoryMapper;
 import com.ej1.app.category.domain.port.CategoryRepository;
+import com.ej1.app.category.domain.port.CategoryTranslationCommand;
 import com.ej1.app.category.domain.port.CreateCategoryCommand;
 import com.ej1.app.category.domain.port.UpdateCategoryCommand;
 import lombok.RequiredArgsConstructor;
@@ -37,22 +38,28 @@ public class CategoryService {
 
     @Transactional
     public Category create(CreateCategoryCommand cmd) {
-        if (repository.existsByNameIgnoreCase(cmd.name())) {
-            throw new DuplicateCategoryNameException(cmd.name());
-        }
+        requireTranslationsUnused(cmd.translations(), null);
         return repository.save(mapper.toDomain(cmd));
     }
 
     @Transactional
     public Category update(Long id, UpdateCategoryCommand cmd) {
         Category existing = findById(id);
-
-        if (!existing.getName().equalsIgnoreCase(cmd.name()) && repository.existsByNameIgnoreCase(cmd.name())) {
-            throw new DuplicateCategoryNameException(cmd.name());
-        }
+        requireTranslationsUnused(cmd.translations(), id);
 
         Category updated = mapper.applyUpdate(existing, cmd);
         return repository.save(updated);
+    }
+
+    private void requireTranslationsUnused(List<CategoryTranslationCommand> translations, Long excludeId) {
+        for (CategoryTranslationCommand t : translations) {
+            boolean nameTaken = excludeId == null
+                    ? repository.existsByLocaleAndNameIgnoreCase(t.locale(), t.name())
+                    : repository.existsByLocaleAndNameIgnoreCaseAndIdNot(t.locale(), t.name(), excludeId);
+            if (nameTaken) {
+                throw new DuplicateCategoryNameException(t.name());
+            }
+        }
     }
 
     @Transactional

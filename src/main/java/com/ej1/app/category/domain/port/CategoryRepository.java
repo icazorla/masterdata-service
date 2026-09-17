@@ -15,7 +15,11 @@ public interface CategoryRepository {
 
     boolean existsById(Long id);
 
-    boolean existsByNameIgnoreCase(String name);
+    /** Whether some category already has {@code name} (case-insensitive) for {@code locale}. */
+    boolean existsByLocaleAndNameIgnoreCase(String locale, String name);
+
+    /** Same as {@link #existsByLocaleAndNameIgnoreCase}, ignoring the category being updated ({@code excludeId}). */
+    boolean existsByLocaleAndNameIgnoreCaseAndIdNot(String locale, String name, Long excludeId);
 
     /**
      * Returns every category, sorted by name. Master data — no paging: the

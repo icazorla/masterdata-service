@@ -5,6 +5,7 @@ import com.ej1.app.brand.infrastructure.persistence.BrandJpaRepository;
 import com.ej1.app.brand.infrastructure.persistence.BrandTranslationEntity;
 import com.ej1.app.category.infrastructure.persistence.CategoryEntity;
 import com.ej1.app.category.infrastructure.persistence.CategoryJpaRepository;
+import com.ej1.app.category.infrastructure.persistence.CategoryTranslationEntity;
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
@@ -53,9 +54,9 @@ class ProductRepositoryAdapterTest {
         categoryJpa.deleteAll();
         brandJpa.deleteAll();
 
-        perifericosId = categoryJpa.save(CategoryEntity.builder().name("Periféricos").build()).getId();
-        pantallasId = categoryJpa.save(CategoryEntity.builder().name("Pantallas").build()).getId();
-        cablesId = categoryJpa.save(CategoryEntity.builder().name("Cables").build()).getId();
+        perifericosId = categoryJpa.save(categoryWithName("Periféricos")).getId();
+        pantallasId = categoryJpa.save(categoryWithName("Pantallas")).getId();
+        cablesId = categoryJpa.save(categoryWithName("Cables")).getId();
         BrandEntity logitech = BrandEntity.builder().build();
         logitech.setTranslations(List.of(
                 BrandTranslationEntity.builder().brand(logitech).locale("en").name("Logitech").build()));
@@ -71,6 +72,13 @@ class ProductRepositoryAdapterTest {
                 .brandId(logitechId)
                 .active(true)
                 .build();
+    }
+
+    private static CategoryEntity categoryWithName(String name) {
+        CategoryEntity category = CategoryEntity.builder().build();
+        category.setTranslations(List.of(
+                CategoryTranslationEntity.builder().category(category).locale("en").name(name).build()));
+        return category;
     }
 
     @Test

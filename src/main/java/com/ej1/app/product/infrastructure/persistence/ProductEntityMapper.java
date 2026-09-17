@@ -3,6 +3,7 @@ package com.ej1.app.product.infrastructure.persistence;
 import com.ej1.app.brand.infrastructure.persistence.BrandEntity;
 import com.ej1.app.brand.infrastructure.persistence.BrandTranslationEntity;
 import com.ej1.app.category.infrastructure.persistence.CategoryEntity;
+import com.ej1.app.category.infrastructure.persistence.CategoryTranslationEntity;
 import com.ej1.app.product.domain.Product;
 import jakarta.persistence.EntityManager;
 import org.mapstruct.Context;
@@ -27,10 +28,11 @@ import org.mapstruct.Named;
  * is the plain id ({@code categoryId}/{@code brandId} — {@link Product} references
  * those aggregates by identity only), but {@code toDomain} also copies the
  * associated row's {@code name} into {@code categoryName}/{@code brandName}, a
- * read-only label for display. {@code brandName} is resolved from
- * {@link BrandEntity#getTranslations()} for the app's default locale ({@code en})
- * — Product's API has no locale concept of its own, so it always shows the same
- * language regardless of the caller's {@code Accept-Language}, unlike
+ * read-only label for display. {@code categoryName}/{@code brandName} are resolved
+ * from {@link CategoryEntity#getTranslations()}/{@link BrandEntity#getTranslations()}
+ * for the app's default locale ({@code en}) — Product's API has no locale concept of
+ * its own, so it always shows the same language regardless of the caller's
+ * {@code Accept-Language}, unlike {@code com.ej1.app.category.interfaces.rest.CategoryController}/
  * {@code com.ej1.app.brand.interfaces.rest.BrandController}'s own responses.
  * That only works when the caller loaded
  * {@code entity} with the association populated (see
@@ -43,7 +45,7 @@ import org.mapstruct.Named;
 public interface ProductEntityMapper {
 
     @Mapping(target = "categoryId", source = "category.id")
-    @Mapping(target = "categoryName", source = "category.name")
+    @Mapping(target = "categoryName", source = "category", qualifiedByName = "categoryDisplayName")
     @Mapping(target = "brandId", source = "brand.id")
     @Mapping(target = "brandName", source = "brand", qualifiedByName = "brandDisplayName")
     Product toDomain(ProductEntity entity);
@@ -82,6 +84,19 @@ public interface ProductEntityMapper {
                 .filter(t -> "en".equalsIgnoreCase(t.getLocale()))
                 .findFirst()
                 .map(BrandTranslationEntity::getName)
+                .orElse(null);
+    }
+
+    /** See the class Javadoc: always the default-locale ({@code en}) name, regardless of caller locale. */
+    @Named("categoryDisplayName")
+    default String categoryDisplayName(CategoryEntity category) {
+        if (category == null) {
+            return null;
+        }
+        return category.getTranslations().stream()
+                .filter(t -> "en".equalsIgnoreCase(t.getLocale()))
+                .findFirst()
+                .map(CategoryTranslationEntity::getName)
                 .orElse(null);
     }
 }

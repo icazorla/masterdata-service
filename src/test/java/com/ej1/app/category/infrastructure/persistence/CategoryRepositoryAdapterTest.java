@@ -1,6 +1,7 @@
 package com.ej1.app.category.infrastructure.persistence;
 
 import com.ej1.app.category.domain.Category;
+import com.ej1.app.category.domain.CategoryTranslation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest
 @AutoConfigureTestDatabase
 @Import({CategoryRepositoryAdapter.class, CategoryEntityMapperImpl.class})
+@TestPropertySource(properties = "spring.web.locale=en")
 class CategoryRepositoryAdapterTest {
 
     @Autowired
@@ -31,8 +34,7 @@ class CategoryRepositoryAdapterTest {
     void setUp() {
         jpa.deleteAll();
         sample = Category.builder()
-                .name("Periféricos")
-                .description("Teclados, ratones y accesorios")
+                .translations(List.of(new CategoryTranslation("en", "Peripherals", "Keyboards, mice and accessories")))
                 .build();
     }
 
@@ -44,7 +46,8 @@ class CategoryRepositoryAdapterTest {
         assertThat(saved.getId()).isNotNull();
         assertThat(saved.getCreatedAt()).isNotNull();
         assertThat(saved.getUpdatedAt()).isNotNull();
-        assertThat(saved.getName()).isEqualTo("Periféricos");
+        assertThat(saved.translation("en")).isPresent();
+        assertThat(saved.translation("en").get().name()).isEqualTo("Peripherals");
     }
 
     @Test
@@ -55,7 +58,7 @@ class CategoryRepositoryAdapterTest {
         Optional<Category> result = adapter.findById(saved.getId());
 
         assertThat(result).isPresent();
-        assertThat(result.get().getName()).isEqualTo("Periféricos");
+        assertThat(result.get().translation("en").get().name()).isEqualTo("Peripherals");
     }
 
     @Test
@@ -65,17 +68,25 @@ class CategoryRepositoryAdapterTest {
     }
 
     @Test
-    @DisplayName("existsByNameIgnoreCase detecta nombre existente sin distinguir mayúsculas")
-    void existsByNameIgnoreCase_true() {
+    @DisplayName("existsByLocaleAndNameIgnoreCase detecta nombre existente sin distinguir mayúsculas")
+    void existsByLocaleAndNameIgnoreCase_true() {
         adapter.save(sample);
 
-        assertThat(adapter.existsByNameIgnoreCase("periféricos")).isTrue();
+        assertThat(adapter.existsByLocaleAndNameIgnoreCase("en", "peripherals")).isTrue();
     }
 
     @Test
-    @DisplayName("existsByNameIgnoreCase devuelve false cuando no existe")
-    void existsByNameIgnoreCase_false() {
-        assertThat(adapter.existsByNameIgnoreCase("no-existe")).isFalse();
+    @DisplayName("existsByLocaleAndNameIgnoreCase devuelve false cuando no existe")
+    void existsByLocaleAndNameIgnoreCase_false() {
+        assertThat(adapter.existsByLocaleAndNameIgnoreCase("en", "no-existe")).isFalse();
+    }
+
+    @Test
+    @DisplayName("existsByLocaleAndNameIgnoreCaseAndIdNot ignora la propia categoría")
+    void existsByLocaleAndNameIgnoreCaseAndIdNot_excludesSelf() {
+        Category saved = adapter.save(sample);
+
+        assertThat(adapter.existsByLocaleAndNameIgnoreCaseAndIdNot("en", "Peripherals", saved.getId())).isFalse();
     }
 
     @Test
@@ -87,15 +98,16 @@ class CategoryRepositoryAdapterTest {
     }
 
     @Test
-    @DisplayName("findAll devuelve todas las categorías ordenadas por nombre")
+    @DisplayName("findAll devuelve todas las categorías ordenadas por nombre en el idioma por defecto")
     void findAll_returnsAllSortedByName() {
-        adapter.save(Category.builder().name("Pantallas").build());
-        adapter.save(Category.builder().name("Cables").build());
-        adapter.save(sample); // Periféricos
+        adapter.save(Category.builder().translations(List.of(new CategoryTranslation("en", "Screens", null))).build());
+        adapter.save(Category.builder().translations(List.of(new CategoryTranslation("en", "Cables", null))).build());
+        adapter.save(sample); // Peripherals
 
         List<Category> result = adapter.findAll();
 
-        assertThat(result).extracting(Category::getName).containsExactly("Cables", "Pantallas", "Periféricos");
+        assertThat(result).extracting(c -> c.translation("en").get().name())
+                .containsExactly("Cables", "Peripherals", "Screens");
     }
 
     @Test
@@ -115,13 +127,13 @@ class CategoryRepositoryAdapterTest {
         Category saved = adapter.save(sample);
         Category modified = saved.withIdAndTimestamps(saved.getId(), saved.getCreatedAt(), saved.getUpdatedAt())
                 .toBuilder()
-                .description("Nueva descripción")
+                .translations(List.of(new CategoryTranslation("en", "Peripherals", "New description")))
                 .build();
 
         Category updated = adapter.save(modified);
 
         assertThat(updated.getId()).isEqualTo(saved.getId());
-        assertThat(updated.getDescription()).isEqualTo("Nueva descripción");
+        assertThat(updated.translation("en").get().description()).isEqualTo("New description");
         assertThat(jpa.count()).isEqualTo(1);
     }
 }

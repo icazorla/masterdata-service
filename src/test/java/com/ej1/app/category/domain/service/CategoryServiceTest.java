@@ -1,10 +1,12 @@
 package com.ej1.app.category.domain.service;
 
 import com.ej1.app.category.domain.Category;
+import com.ej1.app.category.domain.CategoryTranslation;
 import com.ej1.app.category.domain.exception.CategoryNotFoundException;
 import com.ej1.app.category.domain.exception.DuplicateCategoryNameException;
 import com.ej1.app.category.domain.port.CategoryMapper;
 import com.ej1.app.category.domain.port.CategoryRepository;
+import com.ej1.app.category.domain.port.CategoryTranslationCommand;
 import com.ej1.app.category.domain.port.CreateCategoryCommand;
 import com.ej1.app.category.domain.port.UpdateCategoryCommand;
 import com.ej1.app.category.infrastructure.persistence.CategoryMapperAdapter;
@@ -48,12 +50,11 @@ class CategoryServiceTest {
     void setUp() {
         sample = Category.builder()
                 .id(1L)
-                .name("Periféricos")
-                .description("Teclados, ratones y accesorios")
+                .translations(List.of(new CategoryTranslation("en", "Peripherals", "Keyboards, mice and accessories")))
                 .build();
 
-        validCreate = new CreateCategoryCommand("Periféricos", "Teclados, ratones y accesorios");
-        validUpdate = new UpdateCategoryCommand("Periféricos", "Teclados, ratones y accesorios");
+        validCreate = new CreateCategoryCommand(List.of(new CategoryTranslationCommand("en", "Peripherals", "Keyboards, mice and accessories")));
+        validUpdate = new UpdateCategoryCommand(List.of(new CategoryTranslationCommand("en", "Peripherals", "Keyboards, mice and accessories")));
     }
 
     @Test
@@ -83,25 +84,26 @@ class CategoryServiceTest {
     }
 
     @Test
-    @DisplayName("create persiste la categoría cuando el nombre es nuevo")
+    @DisplayName("create persiste la categoría cuando el nombre es nuevo en cada idioma")
     void create_persistsWhenNameNew() {
-        when(repository.existsByNameIgnoreCase("Periféricos")).thenReturn(false);
+        when(repository.existsByLocaleAndNameIgnoreCase("en", "Peripherals")).thenReturn(false);
         when(repository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Category result = service.create(validCreate);
 
-        assertThat(result.getName()).isEqualTo("Periféricos");
+        assertThat(result.translation("en")).isPresent();
+        assertThat(result.translation("en").get().name()).isEqualTo("Peripherals");
         verify(repository).save(any(Category.class));
     }
 
     @Test
-    @DisplayName("create lanza DuplicateCategoryNameException cuando el nombre ya existe")
+    @DisplayName("create lanza DuplicateCategoryNameException cuando el nombre ya existe en ese idioma")
     void create_throwsWhenNameDuplicated() {
-        when(repository.existsByNameIgnoreCase("Periféricos")).thenReturn(true);
+        when(repository.existsByLocaleAndNameIgnoreCase("en", "Peripherals")).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(validCreate))
                 .isInstanceOf(DuplicateCategoryNameException.class)
-                .hasMessageContaining("Periféricos");
+                .hasMessageContaining("Peripherals");
 
         verify(repository, never()).save(any());
     }
@@ -109,22 +111,22 @@ class CategoryServiceTest {
     @Test
     @DisplayName("update modifica la categoría cuando el nombre no cambia")
     void update_modifiesWhenNameUnchanged() {
-        UpdateCategoryCommand updateCmd = new UpdateCategoryCommand("Periféricos", "Nueva descripción");
+        UpdateCategoryCommand updateCmd = new UpdateCategoryCommand(List.of(new CategoryTranslationCommand("en", "Peripherals", "New description")));
         when(repository.findById(1L)).thenReturn(Optional.of(sample));
+        when(repository.existsByLocaleAndNameIgnoreCaseAndIdNot("en", "Peripherals", 1L)).thenReturn(false);
         when(repository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Category result = service.update(1L, updateCmd);
 
-        assertThat(result.getDescription()).isEqualTo("Nueva descripción");
-        verify(repository, never()).existsByNameIgnoreCase(any());
+        assertThat(result.translation("en").get().description()).isEqualTo("New description");
     }
 
     @Test
     @DisplayName("update detecta duplicado cuando el nombre cambia a uno existente")
     void update_throwsWhenNewNameExists() {
-        UpdateCategoryCommand updateCmd = new UpdateCategoryCommand("Pantallas", "desc");
+        UpdateCategoryCommand updateCmd = new UpdateCategoryCommand(List.of(new CategoryTranslationCommand("en", "Displays", "desc")));
         when(repository.findById(1L)).thenReturn(Optional.of(sample));
-        when(repository.existsByNameIgnoreCase("Pantallas")).thenReturn(true);
+        when(repository.existsByLocaleAndNameIgnoreCaseAndIdNot("en", "Displays", 1L)).thenReturn(true);
 
         assertThatThrownBy(() -> service.update(1L, updateCmd))
                 .isInstanceOf(DuplicateCategoryNameException.class);

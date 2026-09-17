@@ -1,7 +1,7 @@
 package com.ej1.app.shared.domain;
 
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  * Validates that a {@code sortBy} value names an actual sortable field, throwing the
@@ -22,14 +22,15 @@ public final class SortableFieldValidator {
     }
 
     /**
-     * Throws {@code exceptionFactory.apply(message)} when {@code sortBy} is not in
-     * {@code allowedFields}. Does nothing otherwise.
+     * Throws {@code exceptionFactory.apply(sortBy, allowedFields)} when {@code sortBy} is not in
+     * {@code allowedFields}. Does nothing otherwise. {@code sortBy} and {@code allowedFields} are
+     * passed through as structured arguments (rather than pre-formatted into a message) so the
+     * exception can carry them for later localization.
      */
     public static void requireSortable(String sortBy, Set<String> allowedFields,
-                                        Function<String, ? extends RuntimeException> exceptionFactory) {
+                                        BiFunction<String, Set<String>, ? extends RuntimeException> exceptionFactory) {
         if (!allowedFields.contains(sortBy)) {
-            throw exceptionFactory.apply(
-                    "sortBy '%s' is not sortable. Allowed values: %s".formatted(sortBy, allowedFields));
+            throw exceptionFactory.apply(sortBy, allowedFields);
         }
     }
 }

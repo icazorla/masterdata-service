@@ -2,6 +2,7 @@ package com.ej1.app.product.infrastructure.persistence;
 
 import com.ej1.app.brand.infrastructure.persistence.BrandEntity;
 import com.ej1.app.brand.infrastructure.persistence.BrandJpaRepository;
+import com.ej1.app.brand.infrastructure.persistence.BrandTranslationEntity;
 import com.ej1.app.category.infrastructure.persistence.CategoryEntity;
 import com.ej1.app.category.infrastructure.persistence.CategoryJpaRepository;
 import com.ej1.app.product.domain.Product;
@@ -55,7 +56,10 @@ class ProductRepositoryAdapterTest {
         perifericosId = categoryJpa.save(CategoryEntity.builder().name("Periféricos").build()).getId();
         pantallasId = categoryJpa.save(CategoryEntity.builder().name("Pantallas").build()).getId();
         cablesId = categoryJpa.save(CategoryEntity.builder().name("Cables").build()).getId();
-        logitechId = brandJpa.save(BrandEntity.builder().name("Logitech").build()).getId();
+        BrandEntity logitech = BrandEntity.builder().build();
+        logitech.setTranslations(List.of(
+                BrandTranslationEntity.builder().brand(logitech).locale("en").name("Logitech").build()));
+        logitechId = brandJpa.save(logitech).getId();
 
         sample = Product.builder()
                 .name("Teclado mecánico")

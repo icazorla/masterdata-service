@@ -1,6 +1,7 @@
 package com.ej1.app.brand.infrastructure.persistence;
 
 import com.ej1.app.brand.domain.Brand;
+import com.ej1.app.brand.domain.BrandTranslation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest
 @AutoConfigureTestDatabase
 @Import({BrandRepositoryAdapter.class, BrandEntityMapperImpl.class})
+@TestPropertySource(properties = "spring.web.locale=en")
 class BrandRepositoryAdapterTest {
 
     @Autowired
@@ -31,8 +34,7 @@ class BrandRepositoryAdapterTest {
     void setUp() {
         jpa.deleteAll();
         sample = Brand.builder()
-                .name("Logitech")
-                .description("Fabricante de periféricos")
+                .translations(List.of(new BrandTranslation("en", "Logitech", "Peripheral manufacturer")))
                 .build();
     }
 
@@ -44,7 +46,8 @@ class BrandRepositoryAdapterTest {
         assertThat(saved.getId()).isNotNull();
         assertThat(saved.getCreatedAt()).isNotNull();
         assertThat(saved.getUpdatedAt()).isNotNull();
-        assertThat(saved.getName()).isEqualTo("Logitech");
+        assertThat(saved.translation("en")).isPresent();
+        assertThat(saved.translation("en").get().name()).isEqualTo("Logitech");
     }
 
     @Test
@@ -55,7 +58,7 @@ class BrandRepositoryAdapterTest {
         Optional<Brand> result = adapter.findById(saved.getId());
 
         assertThat(result).isPresent();
-        assertThat(result.get().getName()).isEqualTo("Logitech");
+        assertThat(result.get().translation("en").get().name()).isEqualTo("Logitech");
     }
 
     @Test
@@ -65,17 +68,25 @@ class BrandRepositoryAdapterTest {
     }
 
     @Test
-    @DisplayName("existsByNameIgnoreCase detecta nombre existente sin distinguir mayúsculas")
-    void existsByNameIgnoreCase_true() {
+    @DisplayName("existsByLocaleAndNameIgnoreCase detecta nombre existente sin distinguir mayúsculas")
+    void existsByLocaleAndNameIgnoreCase_true() {
         adapter.save(sample);
 
-        assertThat(adapter.existsByNameIgnoreCase("logitech")).isTrue();
+        assertThat(adapter.existsByLocaleAndNameIgnoreCase("en", "logitech")).isTrue();
     }
 
     @Test
-    @DisplayName("existsByNameIgnoreCase devuelve false cuando no existe")
-    void existsByNameIgnoreCase_false() {
-        assertThat(adapter.existsByNameIgnoreCase("no-existe")).isFalse();
+    @DisplayName("existsByLocaleAndNameIgnoreCase devuelve false cuando no existe")
+    void existsByLocaleAndNameIgnoreCase_false() {
+        assertThat(adapter.existsByLocaleAndNameIgnoreCase("en", "no-existe")).isFalse();
+    }
+
+    @Test
+    @DisplayName("existsByLocaleAndNameIgnoreCaseAndIdNot ignora la propia marca")
+    void existsByLocaleAndNameIgnoreCaseAndIdNot_excludesSelf() {
+        Brand saved = adapter.save(sample);
+
+        assertThat(adapter.existsByLocaleAndNameIgnoreCaseAndIdNot("en", "Logitech", saved.getId())).isFalse();
     }
 
     @Test
@@ -87,15 +98,16 @@ class BrandRepositoryAdapterTest {
     }
 
     @Test
-    @DisplayName("findAll devuelve todas las marcas ordenadas por nombre")
+    @DisplayName("findAll devuelve todas las marcas ordenadas por nombre en el idioma por defecto")
     void findAll_returnsAllSortedByName() {
-        adapter.save(Brand.builder().name("Samsung").build());
-        adapter.save(Brand.builder().name("Acme").build());
+        adapter.save(Brand.builder().translations(List.of(new BrandTranslation("en", "Samsung", null))).build());
+        adapter.save(Brand.builder().translations(List.of(new BrandTranslation("en", "Acme", null))).build());
         adapter.save(sample); // Logitech
 
         List<Brand> result = adapter.findAll();
 
-        assertThat(result).extracting(Brand::getName).containsExactly("Acme", "Logitech", "Samsung");
+        assertThat(result).extracting(b -> b.translation("en").get().name())
+                .containsExactly("Acme", "Logitech", "Samsung");
     }
 
     @Test
@@ -115,13 +127,13 @@ class BrandRepositoryAdapterTest {
         Brand saved = adapter.save(sample);
         Brand modified = saved.withIdAndTimestamps(saved.getId(), saved.getCreatedAt(), saved.getUpdatedAt())
                 .toBuilder()
-                .description("Nueva descripción")
+                .translations(List.of(new BrandTranslation("en", "Logitech", "New description")))
                 .build();
 
         Brand updated = adapter.save(modified);
 
         assertThat(updated.getId()).isEqualTo(saved.getId());
-        assertThat(updated.getDescription()).isEqualTo("Nueva descripción");
+        assertThat(updated.translation("en").get().description()).isEqualTo("New description");
         assertThat(jpa.count()).isEqualTo(1);
     }
 }

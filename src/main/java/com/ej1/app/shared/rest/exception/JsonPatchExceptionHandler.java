@@ -2,7 +2,9 @@ package com.ej1.app.shared.rest.exception;
 
 import com.ej1.app.shared.rest.patch.JsonPatchException;
 import com.ej1.app.shared.rest.patch.JsonPatchTestFailedException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,8 +12,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -32,18 +36,38 @@ import java.util.Map;
 @RestControllerAdvice
 @Order(0)
 @Slf4j
+@RequiredArgsConstructor
 public class JsonPatchExceptionHandler {
 
+    private final MessageSource messageSource;
+
     @ExceptionHandler(JsonPatchTestFailedException.class)
-    public ResponseEntity<Map<String, Object>> handleTestFailed(JsonPatchTestFailedException ex) {
+    public ResponseEntity<Map<String, Object>> handleTestFailed(JsonPatchTestFailedException ex, Locale locale) {
         log.warn(ex.getMessage());
-        return build(HttpStatus.CONFLICT, ex.getMessage());
+        return build(HttpStatus.CONFLICT, resolve(ex, locale));
     }
 
     @ExceptionHandler(JsonPatchException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidPatch(JsonPatchException ex) {
+    public ResponseEntity<Map<String, Object>> handleInvalidPatch(JsonPatchException ex, Locale locale) {
         log.warn(ex.getMessage());
-        return build(HttpStatus.BAD_REQUEST, ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, resolve(ex, locale));
+    }
+
+    /**
+     * {@link com.ej1.app.shared.rest.patch.JsonPatch} wraps the operation-specific exception
+     * (e.g. "member 'x' does not exist") once, adding "Operation N (\"op\" \"path\")" context,
+     * keeping the original as {@code getCause()}. Resolving that wrapper's message key needs the
+     * inner exception's message already localized, so the inner one is resolved first and passed
+     * in as the wrapper key's last placeholder.
+     */
+    private String resolve(JsonPatchException ex, Locale locale) {
+        if (ex.getCause() instanceof JsonPatchException inner) {
+            String resolvedInner = resolve(inner, locale);
+            Object[] args = Arrays.copyOf(ex.getArgs(), ex.getArgs().length + 1);
+            args[args.length - 1] = resolvedInner;
+            return messageSource.getMessage(ex.getMessageKey(), args, ex.getMessage(), locale);
+        }
+        return messageSource.getMessage(ex.getMessageKey(), ex.getArgs(), ex.getMessage(), locale);
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message) {

@@ -28,6 +28,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -134,7 +135,7 @@ class ProductControllerTest {
     @Test
     void getAll_returns422WhenSortByIsUnknown() throws Exception {
         when(service.search(any(ProductSearchCriteria.class), any(Paging.class)))
-                .thenThrow(new InvalidProductQueryException("sortBy 'notAField' is not sortable. Allowed values: [...]"));
+                .thenThrow(new InvalidProductQueryException("notAField", Set.of("id", "name", "price")));
 
         mockMvc.perform(get("/api/products").param("sortBy", "notAField"))
                 .andExpect(status().isUnprocessableEntity())
@@ -312,7 +313,7 @@ class ProductControllerTest {
     @Test
     void query_returns422WhenSortByIsUnknown() throws Exception {
         when(service.search(any(ProductSearchCriteria.class), any(Paging.class)))
-                .thenThrow(new InvalidProductQueryException("sortBy 'notAField' is not sortable. Allowed values: [...]"));
+                .thenThrow(new InvalidProductQueryException("notAField", Set.of("id", "name", "price")));
 
         mockMvc.perform(post("/api/products/query")
                         .param("sortBy", "notAField")
@@ -334,7 +335,8 @@ class ProductControllerTest {
     @Test
     void query_returns422WhenMinPriceGreaterThanMaxPrice() throws Exception {
         when(service.search(any(ProductSearchCriteria.class), any(Paging.class)))
-                .thenThrow(new InvalidProductQueryException("minPrice (100) must not be greater than maxPrice (10)"));
+                .thenThrow(new InvalidProductQueryException("minPrice (100) must not be greater than maxPrice (10)",
+                        "error.product.invalidPriceRange", new BigDecimal("100"), new BigDecimal("10")));
 
         mockMvc.perform(post("/api/products/query")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -6,7 +6,12 @@ package com.ej1.app.shared.rest.patch;
  * {@code JsonPatchExceptionHandler} — the client's expected precondition no longer holds.
  */
 public class JsonPatchTestFailedException extends JsonPatchException {
-    public JsonPatchTestFailedException(String message) {
-        super(message);
+
+    public JsonPatchTestFailedException(String message, String messageKey, Object... args) {
+        super(message, messageKey, args);
+    }
+
+    public JsonPatchTestFailedException(String message, Throwable cause, String messageKey, Object... args) {
+        super(message, cause, messageKey, args);
     }
 }

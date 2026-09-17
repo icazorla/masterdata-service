@@ -1,6 +1,7 @@
 package com.ej1.app.product.infrastructure.persistence;
 
 import com.ej1.app.brand.infrastructure.persistence.BrandEntity;
+import com.ej1.app.brand.infrastructure.persistence.BrandTranslationEntity;
 import com.ej1.app.category.infrastructure.persistence.CategoryEntity;
 import com.ej1.app.product.domain.Product;
 import jakarta.persistence.EntityManager;
@@ -26,7 +27,12 @@ import org.mapstruct.Named;
  * is the plain id ({@code categoryId}/{@code brandId} — {@link Product} references
  * those aggregates by identity only), but {@code toDomain} also copies the
  * associated row's {@code name} into {@code categoryName}/{@code brandName}, a
- * read-only label for display. That only works when the caller loaded
+ * read-only label for display. {@code brandName} is resolved from
+ * {@link BrandEntity#getTranslations()} for the app's default locale ({@code en})
+ * — Product's API has no locale concept of its own, so it always shows the same
+ * language regardless of the caller's {@code Accept-Language}, unlike
+ * {@code com.ej1.app.brand.interfaces.rest.BrandController}'s own responses.
+ * That only works when the caller loaded
  * {@code entity} with the association populated (see
  * {@code ProductJpaRepository}'s {@code @EntityGraph} / {@code ProductSpecifications}'
  * fetch join for reads) — {@code toEntity} going the other way never needs more
@@ -39,7 +45,7 @@ public interface ProductEntityMapper {
     @Mapping(target = "categoryId", source = "category.id")
     @Mapping(target = "categoryName", source = "category.name")
     @Mapping(target = "brandId", source = "brand.id")
-    @Mapping(target = "brandName", source = "brand.name")
+    @Mapping(target = "brandName", source = "brand", qualifiedByName = "brandDisplayName")
     Product toDomain(ProductEntity entity);
 
     @Mapping(target = "id", source = "id")
@@ -64,5 +70,18 @@ public interface ProductEntityMapper {
     @Named("brandRef")
     default BrandEntity brandRef(Long id, @Context EntityManager em) {
         return id == null ? null : em.getReference(BrandEntity.class, id);
+    }
+
+    /** See the class Javadoc: always the default-locale ({@code en}) name, regardless of caller locale. */
+    @Named("brandDisplayName")
+    default String brandDisplayName(BrandEntity brand) {
+        if (brand == null) {
+            return null;
+        }
+        return brand.getTranslations().stream()
+                .filter(t -> "en".equalsIgnoreCase(t.getLocale()))
+                .findFirst()
+                .map(BrandTranslationEntity::getName)
+                .orElse(null);
     }
 }

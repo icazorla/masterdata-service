@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: app
+  web:
+    locale: en
+    locale-resolver: accept-header
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    driverClassName: org.postgresql.Driver
+    username: postgres
+    password: secret
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_schema: public
+    show-sql: true
+
+server:
+  port: 8080
+
+# Locales documented as valid Accept-Language values in Swagger UI (see OpenApiConfig).
+app:
+  i18n:
+    supported-locales: en,es
+
+
+# OpenAPI / Swagger UI
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  info:
+    build:
+      enabled: true
+    env:
+      enabled: true

@@ -1,10 +1,12 @@
 package com.ej1.app.brand.domain.service;
 
 import com.ej1.app.brand.domain.Brand;
+import com.ej1.app.brand.domain.BrandTranslation;
 import com.ej1.app.brand.domain.exception.BrandNotFoundException;
 import com.ej1.app.brand.domain.exception.DuplicateBrandNameException;
 import com.ej1.app.brand.domain.port.BrandMapper;
 import com.ej1.app.brand.domain.port.BrandRepository;
+import com.ej1.app.brand.domain.port.BrandTranslationCommand;
 import com.ej1.app.brand.domain.port.CreateBrandCommand;
 import com.ej1.app.brand.domain.port.UpdateBrandCommand;
 import com.ej1.app.brand.infrastructure.persistence.BrandMapperAdapter;
@@ -48,12 +50,11 @@ class BrandServiceTest {
     void setUp() {
         sample = Brand.builder()
                 .id(1L)
-                .name("Logitech")
-                .description("Fabricante de periféricos")
+                .translations(List.of(new BrandTranslation("en", "Logitech", "Peripheral manufacturer")))
                 .build();
 
-        validCreate = new CreateBrandCommand("Logitech", "Fabricante de periféricos");
-        validUpdate = new UpdateBrandCommand("Logitech", "Fabricante de periféricos");
+        validCreate = new CreateBrandCommand(List.of(new BrandTranslationCommand("en", "Logitech", "Peripheral manufacturer")));
+        validUpdate = new UpdateBrandCommand(List.of(new BrandTranslationCommand("en", "Logitech", "Peripheral manufacturer")));
     }
 
     @Test
@@ -83,21 +84,22 @@ class BrandServiceTest {
     }
 
     @Test
-    @DisplayName("create persiste la marca cuando el nombre es nuevo")
+    @DisplayName("create persiste la marca cuando el nombre es nuevo en cada idioma")
     void create_persistsWhenNameNew() {
-        when(repository.existsByNameIgnoreCase("Logitech")).thenReturn(false);
+        when(repository.existsByLocaleAndNameIgnoreCase("en", "Logitech")).thenReturn(false);
         when(repository.save(any(Brand.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Brand result = service.create(validCreate);
 
-        assertThat(result.getName()).isEqualTo("Logitech");
+        assertThat(result.translation("en")).isPresent();
+        assertThat(result.translation("en").get().name()).isEqualTo("Logitech");
         verify(repository).save(any(Brand.class));
     }
 
     @Test
-    @DisplayName("create lanza DuplicateBrandNameException cuando el nombre ya existe")
+    @DisplayName("create lanza DuplicateBrandNameException cuando el nombre ya existe en ese idioma")
     void create_throwsWhenNameDuplicated() {
-        when(repository.existsByNameIgnoreCase("Logitech")).thenReturn(true);
+        when(repository.existsByLocaleAndNameIgnoreCase("en", "Logitech")).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(validCreate))
                 .isInstanceOf(DuplicateBrandNameException.class)
@@ -109,22 +111,22 @@ class BrandServiceTest {
     @Test
     @DisplayName("update modifica la marca cuando el nombre no cambia")
     void update_modifiesWhenNameUnchanged() {
-        UpdateBrandCommand updateCmd = new UpdateBrandCommand("Logitech", "Nueva descripción");
+        UpdateBrandCommand updateCmd = new UpdateBrandCommand(List.of(new BrandTranslationCommand("en", "Logitech", "New description")));
         when(repository.findById(1L)).thenReturn(Optional.of(sample));
+        when(repository.existsByLocaleAndNameIgnoreCaseAndIdNot("en", "Logitech", 1L)).thenReturn(false);
         when(repository.save(any(Brand.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Brand result = service.update(1L, updateCmd);
 
-        assertThat(result.getDescription()).isEqualTo("Nueva descripción");
-        verify(repository, never()).existsByNameIgnoreCase(any());
+        assertThat(result.translation("en").get().description()).isEqualTo("New description");
     }
 
     @Test
     @DisplayName("update detecta duplicado cuando el nombre cambia a uno existente")
     void update_throwsWhenNewNameExists() {
-        UpdateBrandCommand updateCmd = new UpdateBrandCommand("Samsung", "desc");
+        UpdateBrandCommand updateCmd = new UpdateBrandCommand(List.of(new BrandTranslationCommand("en", "Samsung", "desc")));
         when(repository.findById(1L)).thenReturn(Optional.of(sample));
-        when(repository.existsByNameIgnoreCase("Samsung")).thenReturn(true);
+        when(repository.existsByLocaleAndNameIgnoreCaseAndIdNot("en", "Samsung", 1L)).thenReturn(true);
 
         assertThatThrownBy(() -> service.update(1L, updateCmd))
                 .isInstanceOf(DuplicateBrandNameException.class);

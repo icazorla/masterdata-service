@@ -6,9 +6,26 @@ package com.ej1.app.shared.domain.exception;
  * {@code DuplicateBrandNameException}). Lets the global exception handler map all
  * of them to {@code 409 Conflict} in one place instead of one handler method
  * per aggregate.
+ *
+ * <p>See {@link NotFoundException} for why this also carries a {@code messageKey}/{@code args}
+ * pair alongside the plain {@code message}.
  */
 public abstract class DuplicateResourceException extends RuntimeException {
-    protected DuplicateResourceException(String message) {
+
+    private final String messageKey;
+    private final transient Object[] args;
+
+    protected DuplicateResourceException(String message, String messageKey, Object... args) {
         super(message);
+        this.messageKey = messageKey;
+        this.args = args;
+    }
+
+    public String getMessageKey() {
+        return messageKey;
+    }
+
+    public Object[] getArgs() {
+        return args;
     }
 }

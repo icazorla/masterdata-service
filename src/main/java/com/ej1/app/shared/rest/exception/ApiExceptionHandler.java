@@ -4,7 +4,9 @@ import com.ej1.app.shared.domain.exception.DuplicateResourceException;
 import com.ej1.app.shared.domain.exception.InvalidQueryException;
 import com.ej1.app.shared.domain.exception.NotFoundException;
 import jakarta.validation.ConstraintViolationException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -41,18 +44,21 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 @Order(Ordered.LOWEST_PRECEDENCE)
 @Slf4j
+@RequiredArgsConstructor
 public class ApiExceptionHandler {
 
+    private final MessageSource messageSource;
+
     @ExceptionHandler(NotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleNotFound(NotFoundException ex) {
+    public ResponseEntity<Map<String, Object>> handleNotFound(NotFoundException ex, Locale locale) {
         log.warn(ex.getMessage());
-        return build(HttpStatus.NOT_FOUND, ex.getMessage(), List.of());
+        return build(HttpStatus.NOT_FOUND, resolve(ex.getMessageKey(), ex.getArgs(), ex.getMessage(), locale), List.of());
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
-    public ResponseEntity<Map<String, Object>> handleDuplicate(DuplicateResourceException ex) {
+    public ResponseEntity<Map<String, Object>> handleDuplicate(DuplicateResourceException ex, Locale locale) {
         log.warn(ex.getMessage());
-        return build(HttpStatus.CONFLICT, ex.getMessage(), List.of());
+        return build(HttpStatus.CONFLICT, resolve(ex.getMessageKey(), ex.getArgs(), ex.getMessage(), locale), List.of());
     }
 
     /**
@@ -61,9 +67,9 @@ public class ApiExceptionHandler {
      * distinction documented on {@link InvalidQueryException}.
      */
     @ExceptionHandler(InvalidQueryException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidQuery(InvalidQueryException ex) {
+    public ResponseEntity<Map<String, Object>> handleInvalidQuery(InvalidQueryException ex, Locale locale) {
         log.warn(ex.getMessage());
-        return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), List.of());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, resolve(ex.getMessageKey(), ex.getArgs(), ex.getMessage(), locale), List.of());
     }
 
     /**
@@ -73,18 +79,18 @@ public class ApiExceptionHandler {
      * Surfaced by the database, wrapped by Spring Data as this exception.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex, Locale locale) {
         log.warn(ex.getMessage());
         return build(HttpStatus.CONFLICT,
-                "The resource cannot be saved or deleted because it is referenced by other records", List.of());
+                messageSource.getMessage("error.dataIntegrityViolation", null, locale), List.of());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
+    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex, Locale locale) {
         List<String> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.toList());
-        return build(HttpStatus.BAD_REQUEST, "Validation failed", errors);
+        return build(HttpStatus.BAD_REQUEST, messageSource.getMessage("error.validationFailed", null, locale), errors);
     }
 
     /**
@@ -93,11 +99,11 @@ public class ApiExceptionHandler {
      * {@code @Valid} on), unlike {@link MethodArgumentNotValidException} above.
      */
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleConstraintViolation(ConstraintViolationException ex) {
+    public ResponseEntity<Map<String, Object>> handleConstraintViolation(ConstraintViolationException ex, Locale locale) {
         List<String> errors = ex.getConstraintViolations().stream()
                 .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
                 .collect(Collectors.toList());
-        return build(HttpStatus.BAD_REQUEST, "Validation failed", errors);
+        return build(HttpStatus.BAD_REQUEST, messageSource.getMessage("error.validationFailed", null, locale), errors);
     }
 
     /**
@@ -107,9 +113,9 @@ public class ApiExceptionHandler {
      * before Spring's built-in {@code HandlerExceptionResolver} chain runs.
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<Map<String, Object>> handleNotReadable(HttpMessageNotReadableException ex) {
+    public ResponseEntity<Map<String, Object>> handleNotReadable(HttpMessageNotReadableException ex, Locale locale) {
         log.warn(ex.getMessage());
-        return build(HttpStatus.BAD_REQUEST, "Malformed request body", List.of());
+        return build(HttpStatus.BAD_REQUEST, messageSource.getMessage("error.malformedRequestBody", null, locale), List.of());
     }
 
     /**
@@ -118,15 +124,19 @@ public class ApiExceptionHandler {
      * why this needs an explicit handler here rather than relying on Spring's default.
      */
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-    public ResponseEntity<Map<String, Object>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+    public ResponseEntity<Map<String, Object>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex, Locale locale) {
         log.warn(ex.getMessage());
-        return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage(), List.of());
+        return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, messageSource.getMessage("error.unsupportedMediaType", null, locale), List.of());
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
+    public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex, Locale locale) {
         log.error("Unhandled error", ex);
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", List.of());
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, messageSource.getMessage("error.internalServerError", null, locale), List.of());
+    }
+
+    private String resolve(String messageKey, Object[] args, String fallback, Locale locale) {
+        return messageSource.getMessage(messageKey, args, fallback, locale);
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message, List<String> errors) {

@@ -48,14 +48,19 @@ public final class JsonPatch {
                 case "move" -> move(doc, requireFrom(op), requirePath(op));
                 case "copy" -> copy(doc, requireFrom(op), requirePath(op));
                 case "test" -> test(doc, requirePath(op), op.value());
-                default -> throw new JsonPatchException("Unsupported op '" + type + "'");
+                default -> throw new JsonPatchException("Unsupported op '" + type + "'",
+                        "error.jsonPatch.unsupportedOp", type);
             };
         } catch (JsonPatchTestFailedException e) {
             // must be caught before the broader JsonPatchException below (it's a subtype) so a
             // failed "test" op still maps to 409, not the generic 400 for malformed patches.
-            throw new JsonPatchTestFailedException("Operation " + index + " (\"" + type + "\" \"" + op.path() + "\"): " + e.getMessage());
+            throw new JsonPatchTestFailedException(
+                    "Operation " + index + " (\"" + type + "\" \"" + op.path() + "\"): " + e.getMessage(),
+                    e, "error.jsonPatch.operationFailed", index, type, op.path());
         } catch (JsonPatchException e) {
-            throw new JsonPatchException("Operation " + index + " (\"" + type + "\" \"" + op.path() + "\"): " + e.getMessage());
+            throw new JsonPatchException(
+                    "Operation " + index + " (\"" + type + "\" \"" + op.path() + "\"): " + e.getMessage(),
+                    e, "error.jsonPatch.operationFailed", index, type, op.path());
         }
     }
 
@@ -75,7 +80,7 @@ public final class JsonPatch {
             List<Object> list = (List<Object>) raw;
             list.add(parseIndex(last, list.size(), true), deepCopy(value));
         } else {
-            throw new JsonPatchException("cannot add into a scalar value");
+            throw new JsonPatchException("cannot add into a scalar value", "error.jsonPatch.addIntoScalar");
         }
         return doc;
     }
@@ -84,21 +89,22 @@ public final class JsonPatch {
     private static Object remove(Object doc, String pointer) {
         List<String> tokens = tokenize(pointer);
         if (tokens.isEmpty()) {
-            throw new JsonPatchException("cannot remove the whole document");
+            throw new JsonPatchException("cannot remove the whole document", "error.jsonPatch.removeWholeDocument");
         }
         String last = tokens.get(tokens.size() - 1);
         Object parent = get(doc, tokens.subList(0, tokens.size() - 1));
         if (parent instanceof Map<?, ?> raw) {
             Map<String, Object> map = (Map<String, Object>) raw;
             if (!map.containsKey(last)) {
-                throw new JsonPatchException("member '" + last + "' does not exist");
+                throw new JsonPatchException("member '" + last + "' does not exist",
+                        "error.jsonPatch.memberNotFound", last);
             }
             map.remove(last);
         } else if (parent instanceof List<?> raw) {
             List<Object> list = (List<Object>) raw;
             list.remove(parseIndex(last, list.size(), false));
         } else {
-            throw new JsonPatchException("cannot remove from a scalar value");
+            throw new JsonPatchException("cannot remove from a scalar value", "error.jsonPatch.removeFromScalar");
         }
         return doc;
     }
@@ -115,7 +121,8 @@ public final class JsonPatch {
 
     private static Object move(Object doc, String from, String path) {
         if (path.equals(from) || path.startsWith(from + "/")) {
-            throw new JsonPatchException("cannot move a value into one of its own children");
+            throw new JsonPatchException("cannot move a value into one of its own children",
+                    "error.jsonPatch.moveIntoOwnChild");
         }
         Object value = deepCopy(get(doc, tokenize(from)));
         Object afterRemove = remove(doc, from);
@@ -131,7 +138,8 @@ public final class JsonPatch {
         Object actual = get(doc, tokenize(pointer));
         if (!deepEquals(actual, expected)) {
             throw new JsonPatchTestFailedException(
-                    "test failed: expected " + expected + " but was " + actual);
+                    "test failed: expected " + expected + " but was " + actual,
+                    "error.jsonPatch.testFailed", expected, actual);
         }
         return doc;
     }
@@ -143,7 +151,8 @@ public final class JsonPatch {
             return List.of();
         }
         if (!pointer.startsWith("/")) {
-            throw new JsonPatchException("invalid JSON Pointer '" + pointer + "' (must start with '/')");
+            throw new JsonPatchException("invalid JSON Pointer '" + pointer + "' (must start with '/')",
+                    "error.jsonPatch.invalidPointer", pointer);
         }
         String[] parts = pointer.substring(1).split("/", -1);
         List<String> tokens = new ArrayList<>(parts.length);
@@ -164,14 +173,16 @@ public final class JsonPatch {
     private static Object step(Object current, String token) {
         if (current instanceof Map<?, ?> map) {
             if (!map.containsKey(token)) {
-                throw new JsonPatchException("member '" + token + "' does not exist");
+                throw new JsonPatchException("member '" + token + "' does not exist",
+                        "error.jsonPatch.memberNotFound", token);
             }
             return map.get(token);
         }
         if (current instanceof List<?> list) {
             return list.get(parseIndex(token, list.size(), false));
         }
-        throw new JsonPatchException("cannot navigate into a scalar value at '" + token + "'");
+        throw new JsonPatchException("cannot navigate into a scalar value at '" + token + "'",
+                "error.jsonPatch.navigateIntoScalar", token);
     }
 
     private static int parseIndex(String token, int size, boolean forInsertion) {
@@ -179,26 +190,28 @@ public final class JsonPatch {
             return size;
         }
         if (!token.matches("0|[1-9]\\d*")) {
-            throw new JsonPatchException("invalid array index '" + token + "'");
+            throw new JsonPatchException("invalid array index '" + token + "'",
+                    "error.jsonPatch.invalidArrayIndex", token);
         }
         int index = Integer.parseInt(token);
         int max = forInsertion ? size : size - 1;
         if (index < 0 || index > max) {
-            throw new JsonPatchException("array index " + index + " out of bounds (size " + size + ")");
+            throw new JsonPatchException("array index " + index + " out of bounds (size " + size + ")",
+                    "error.jsonPatch.arrayIndexOutOfBounds", index, size);
         }
         return index;
     }
 
     private static String requirePath(JsonPatchOperation op) {
         if (op.path() == null) {
-            throw new JsonPatchException("missing 'path'");
+            throw new JsonPatchException("missing 'path'", "error.jsonPatch.missingPath");
         }
         return op.path();
     }
 
     private static String requireFrom(JsonPatchOperation op) {
         if (op.from() == null) {
-            throw new JsonPatchException("missing 'from'");
+            throw new JsonPatchException("missing 'from'", "error.jsonPatch.missingFrom");
         }
         return op.from();
     }

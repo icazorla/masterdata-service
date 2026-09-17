@@ -119,7 +119,8 @@ public class ProductService {
                 && criteria.minPrice().compareTo(criteria.maxPrice()) > 0) {
             throw new InvalidProductQueryException(
                     "minPrice (%s) must not be greater than maxPrice (%s)"
-                            .formatted(criteria.minPrice(), criteria.maxPrice()));
+                            .formatted(criteria.minPrice(), criteria.maxPrice()),
+                    "error.product.invalidPriceRange", criteria.minPrice(), criteria.maxPrice());
         }
         SortableFieldValidator.requireSortable(paging.sortBy(), ALLOWED_SORT_FIELDS,
                 InvalidProductQueryException::new);

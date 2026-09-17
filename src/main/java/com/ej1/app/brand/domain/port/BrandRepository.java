@@ -15,7 +15,11 @@ public interface BrandRepository {
 
     boolean existsById(Long id);
 
-    boolean existsByNameIgnoreCase(String name);
+    /** Whether some brand already has {@code name} (case-insensitive) for {@code locale}. */
+    boolean existsByLocaleAndNameIgnoreCase(String locale, String name);
+
+    /** Same as {@link #existsByLocaleAndNameIgnoreCase}, ignoring the brand being updated ({@code excludeId}). */
+    boolean existsByLocaleAndNameIgnoreCaseAndIdNot(String locale, String name, Long excludeId);
 
     /**
      * Returns every brand, sorted by name. Master data — no paging: the

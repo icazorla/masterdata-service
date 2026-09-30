@@ -15,9 +15,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * OpenAPI/Swagger metadata. Pure Spring wiring — lives outside the
- * {@code product} feature package since it describes the API as a whole,
- * not any single aggregate.
+ * Metadatos de OpenAPI/Swagger. Configuración pura de Spring — vive fuera del
+ * paquete de la feature {@code product} ya que describe la API en su conjunto,
+ * no un agregado concreto.
  *
  * <p>UI: {@code /swagger-ui.html} — Spec: {@code /v3/api-docs}
  */
@@ -36,15 +36,16 @@ public class OpenApiConfig {
     }
 
     /**
-     * Documents {@code Accept-Language} on every operation in Swagger UI. Spring already
-     * resolves this header on its own (see {@code AcceptHeaderLocaleResolver} and
-     * {@code ApiExceptionHandler}/{@code messages*.properties}) — Swagger UI just has no way
-     * to know it exists unless it's declared on the OpenAPI spec, since it's never bound as a
-     * {@code @RequestHeader} on any controller method.
+     * Documenta {@code Accept-Language} en cada operación de Swagger UI. Spring ya resuelve
+     * esta cabecera por su cuenta (ver {@code AcceptHeaderLocaleResolver} y
+     * {@code ApiExceptionHandler}/{@code messages*.properties}) — Swagger UI simplemente no
+     * tiene forma de saber que existe a menos que se declare en el spec de OpenAPI, ya que
+     * nunca se vincula como un {@code @RequestHeader} en ningún método de controlador.
      *
-     * <p>{@code app.i18n.supported-locales} (comma-separated) drives the dropdown of valid
-     * values so it stays in sync with whichever {@code messages_<locale>.properties} bundles
-     * actually exist, instead of being hardcoded here.
+     * <p>{@code app.i18n.supported-locales} (separado por comas) alimenta el desplegable de
+     * valores válidos para que se mantenga sincronizado con los bundles
+     * {@code messages_<locale>.properties} que realmente existan, en lugar de estar
+     * codificado aquí de forma fija.
      */
     @Bean
     public GlobalOperationCustomizer acceptLanguageHeaderCustomizer(

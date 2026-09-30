@@ -1,9 +1,8 @@
 package com.ej1.app.product.domain.service;
 
-import com.ej1.app.brand.domain.exception.BrandNotFoundException;
-import com.ej1.app.brand.domain.port.BrandRepository;
-import com.ej1.app.category.domain.exception.CategoryNotFoundException;
-import com.ej1.app.category.domain.port.CategoryRepository;
+import com.ej1.app.common.catalog.domain.CatalogType;
+import com.ej1.app.common.catalog.domain.exception.CatalogNotFoundException;
+import com.ej1.app.common.catalog.domain.service.CatalogService;
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.exception.DuplicateSkuException;
 import com.ej1.app.product.domain.exception.InvalidProductQueryException;
@@ -13,9 +12,9 @@ import com.ej1.app.product.domain.port.ProductMapper;
 import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
-import com.ej1.app.shared.domain.PageResult;
-import com.ej1.app.shared.domain.Paging;
-import com.ej1.app.shared.domain.SortableFieldValidator;
+import com.ej1.app.common.domain.PageResult;
+import com.ej1.app.common.domain.Paging;
+import com.ej1.app.common.domain.SortableFieldValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,26 +22,28 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Set;
 
 /**
- * Domain service (use case) for the product aggregate.
- * Lives in the domain layer; depends only on its own ports.
+ * Servicio de dominio (caso de uso) para el agregado de producto.
+ * Vive en la capa de dominio; depende únicamente de sus propios puertos.
  */
 @Service
 @RequiredArgsConstructor
 public class ProductService {
 
     /**
-     * Field names {@code search} accepts for {@code sortBy}. Lives here, not on
-     * {@link ProductSearchCriteria}, because it's knowledge about the {@code Product}
-     * aggregate specifically — a future entity's service would declare its own set.
-     * Sorting by an unlisted field is rejected as a business rule (422), the same way
-     * {@code minPrice > maxPrice} is below, rather than as a single-field format constraint —
-     * enforced via the shared {@link SortableFieldValidator}, which owns only the
-     * check-and-throw mechanics, not this set or the exception type.
+     * Nombres de campo que {@code search} acepta para {@code sortBy}. Vive aquí, no en
+     * {@link ProductSearchCriteria}, porque es conocimiento específico sobre el agregado
+     * {@code Product} — el servicio de una futura entidad declararía su propio conjunto.
+     * Ordenar por un campo no listado se rechaza como regla de negocio (422), igual que
+     * {@code minPrice > maxPrice} más abajo, en lugar de como una restricción de formato
+     * de un solo campo — se aplica mediante el {@link SortableFieldValidator} compartido,
+     * que solo es responsable de la mecánica de comprobar-y-lanzar, no de este conjunto
+     * ni del tipo de excepción.
      *
-     * <p>Package-private (not {@code private}) purely so a same-package test can verify, via
-     * reflection over {@link Product}, that every name here still names a real getter — nothing
-     * here ties this {@code Set<String>} to {@code Product}'s actual fields at compile time, so a
-     * rename would otherwise desync silently until it broke at runtime. See
+     * <p>Package-private (no {@code private}) únicamente para que un test del mismo paquete
+     * pueda verificar, mediante reflexión sobre {@link Product}, que cada nombre aquí sigue
+     * nombrando un getter real — nada aquí liga este {@code Set<String>} a los campos reales
+     * de {@code Product} en tiempo de compilación, así que un renombrado se desincronizaría
+     * silenciosamente hasta romperse en tiempo de ejecución. Ver
      * {@code ProductServiceSortFieldsTest}.
      */
     static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
@@ -50,8 +51,7 @@ public class ProductService {
 
     private final ProductRepository repository;
     private final ProductMapper mapper;
-    private final CategoryRepository categoryRepository;
-    private final BrandRepository brandRepository;
+    private final CatalogService catalogService;
 
     @Transactional(readOnly = true)
     public Product findById(Long id) {
@@ -90,28 +90,29 @@ public class ProductService {
     }
 
     /**
-     * {@code categoryId}/{@code brandId} reference a different aggregate (master data),
-     * so their existence is checked here rather than left to a FK violation surfacing
-     * later as an opaque database error.
+     * {@code categoryId}/{@code brandId} referencian un agregado distinto (datos maestros),
+     * así que su existencia se comprueba aquí en lugar de dejar que una violación de FK
+     * aflore más tarde como un error de base de datos opaco.
      */
     private void requireCategoryAndBrandExist(Long categoryId, Long brandId) {
-        if (categoryId != null && !categoryRepository.existsById(categoryId)) {
-            throw new CategoryNotFoundException(categoryId);
+        if (categoryId != null && !catalogService.existsById(CatalogType.CATEGORY, categoryId)) {
+            throw new CatalogNotFoundException(CatalogType.CATEGORY, categoryId);
         }
-        if (brandId != null && !brandRepository.existsById(brandId)) {
-            throw new BrandNotFoundException(brandId);
+        if (brandId != null && !catalogService.existsById(CatalogType.BRAND, brandId)) {
+            throw new CatalogNotFoundException(CatalogType.BRAND, brandId);
         }
     }
 
     /**
-     * Filtered, sorted, paginated product search. {@code criteria} carries only filters;
-     * {@code paging} carries page/size/sort, passed separately so each is a single source
-     * of truth for its own concern (see {@link ProductSearchCriteria}). Validates business
-     * rules that a single-field Bean Validation constraint cannot express (see
-     * {@link InvalidProductQueryException}) — {@code page}/{@code size} bounds and
-     * {@code sortDirection} being {@code ASC}/{@code DESC} are already guaranteed
-     * well-formed by the REST layer's Bean Validation; {@code sortBy} naming an actual
-     * sortable field is Product-specific business knowledge, so it's checked here instead.
+     * Búsqueda de productos filtrada, ordenada y paginada. {@code criteria} transporta solo
+     * filtros; {@code paging} transporta page/size/sort, pasados por separado para que cada
+     * uno sea la única fuente de verdad de su propia responsabilidad (ver
+     * {@link ProductSearchCriteria}). Valida reglas de negocio que una restricción de Bean
+     * Validation de un solo campo no puede expresar (ver {@link InvalidProductQueryException})
+     * — los límites de {@code page}/{@code size} y que {@code sortDirection} sea
+     * {@code ASC}/{@code DESC} ya están garantizados como bien formados por Bean Validation
+     * en la capa REST; que {@code sortBy} nombre un campo realmente ordenable es conocimiento
+     * de negocio específico de Product, así que se comprueba aquí en su lugar.
      */
     @Transactional(readOnly = true)
     public PageResult<Product> search(ProductSearchCriteria criteria, Paging paging) {

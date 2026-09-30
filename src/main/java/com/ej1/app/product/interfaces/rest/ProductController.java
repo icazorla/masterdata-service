@@ -7,10 +7,11 @@ import com.ej1.app.product.interfaces.rest.dto.ProductQueryRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductRequest;
 import com.ej1.app.product.interfaces.rest.dto.ProductResponse;
 import com.ej1.app.product.interfaces.rest.mapper.ProductRestMapper;
-import com.ej1.app.shared.domain.Paging;
-import com.ej1.app.shared.rest.PageHeaders;
-import com.ej1.app.shared.rest.patch.JsonPatchApplier;
-import com.ej1.app.shared.rest.patch.JsonPatchOperation;
+import com.ej1.app.common.domain.Paging;
+import com.ej1.app.common.rest.PageHeaders;
+import com.ej1.app.common.rest.SortDirection;
+import com.ej1.app.common.rest.patch.JsonPatchApplier;
+import com.ej1.app.common.rest.patch.JsonPatchOperation;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -21,7 +22,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -77,11 +77,9 @@ public class ProductController {
                     + "categoryId, brandId, createdAt, updatedAt (se valida como regla de negocio, no de formato — 422 si no es válido).")
             @RequestParam(defaultValue = "id") String sortBy,
             @Parameter(description = "Dirección de ordenación")
-            @RequestParam(defaultValue = "ASC")
-            @Pattern(regexp = "ASC|DESC", message = "sortDirection debe ser ASC o DESC")
-            String sortDirection) {
+            @RequestParam(defaultValue = "ASC") SortDirection sortDirection) {
         var criteria = new ProductSearchCriteria(null, null, null, null, null, null, null, null);
-        var result = service.search(criteria, new Paging(page, size, sortBy, sortDirection));
+        var result = service.search(criteria, new Paging(page, size, sortBy, sortDirection.name()));
         return ResponseEntity.ok()
                 .headers(PageHeaders.of(result))
                 .body(mapper.toResponseList(result.content()));
@@ -138,12 +136,10 @@ public class ProductController {
                     + "categoryId, brandId, createdAt, updatedAt (se valida como regla de negocio, no de formato — 422 si no es válido).")
             @RequestParam(defaultValue = "id") String sortBy,
             @Parameter(description = "Dirección de ordenación")
-            @RequestParam(defaultValue = "ASC")
-            @Pattern(regexp = "ASC|DESC", message = "sortDirection debe ser ASC o DESC")
-            String sortDirection,
+            @RequestParam(defaultValue = "ASC") SortDirection sortDirection,
             @Valid @RequestBody ProductQueryRequest request) {
         var criteria = mapper.toCriteria(request);
-        var result = service.search(criteria, new Paging(page, size, sortBy, sortDirection));
+        var result = service.search(criteria, new Paging(page, size, sortBy, sortDirection.name()));
         return ResponseEntity.ok()
                 .header("Accept-Query", "application/json")
                 .headers(PageHeaders.of(result))

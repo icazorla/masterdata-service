@@ -29,6 +29,21 @@ server:
 app:
   i18n:
     supported-locales: en,es
+  # Which @Entity pair backs each CatalogType (see CatalogPersistenceConfig/CatalogProperties).
+  # Adding a new catalog type: create its two @Entity classes and add one more entry here —
+  # no new repository/adapter/mapper class needed. extra-fields: names of fields specific
+  # to that type only (e.g. brand.website) — must exist as a real @Column with a JavaBean
+  # getter/setter on that type's entity class; read/written generically via
+  # CatalogExtraFieldsAccessor and exposed in the REST payload under their own name.
+  catalog:
+    types:
+      brand:
+        entity-class: com.ej1.app.catalog.BrandEntity
+        translation-entity-class: com.ej1.app.catalog.BrandTranslationEntity
+        extra-fields: [website]
+      category:
+        entity-class: com.ej1.app.catalog.CategoryEntity
+        translation-entity-class: com.ej1.app.catalog.CategoryTranslationEntity
 
 
 # OpenAPI / Swagger UI

@@ -1,16 +1,15 @@
 package com.ej1.app.product.infrastructure.persistence;
 
-import com.ej1.app.brand.infrastructure.persistence.BrandEntity;
-import com.ej1.app.brand.infrastructure.persistence.BrandJpaRepository;
-import com.ej1.app.brand.infrastructure.persistence.BrandTranslationEntity;
-import com.ej1.app.category.infrastructure.persistence.CategoryEntity;
-import com.ej1.app.category.infrastructure.persistence.CategoryJpaRepository;
-import com.ej1.app.category.infrastructure.persistence.CategoryTranslationEntity;
+import com.ej1.app.catalog.BrandEntity;
+import com.ej1.app.catalog.BrandTranslationEntity;
+import com.ej1.app.catalog.CategoryEntity;
+import com.ej1.app.catalog.CategoryTranslationEntity;
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
-import com.ej1.app.shared.domain.PageResult;
-import com.ej1.app.shared.domain.Paging;
+import com.ej1.app.common.domain.PageResult;
+import com.ej1.app.common.domain.Paging;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,10 +36,7 @@ class ProductRepositoryAdapterTest {
     private ProductJpaRepository jpa;
 
     @Autowired
-    private CategoryJpaRepository categoryJpa;
-
-    @Autowired
-    private BrandJpaRepository brandJpa;
+    private EntityManager em;
 
     private Product sample;
     private Long perifericosId;
@@ -51,16 +47,11 @@ class ProductRepositoryAdapterTest {
     @BeforeEach
     void setUp() {
         jpa.deleteAll();
-        categoryJpa.deleteAll();
-        brandJpa.deleteAll();
 
-        perifericosId = categoryJpa.save(categoryWithName("Periféricos")).getId();
-        pantallasId = categoryJpa.save(categoryWithName("Pantallas")).getId();
-        cablesId = categoryJpa.save(categoryWithName("Cables")).getId();
-        BrandEntity logitech = BrandEntity.builder().build();
-        logitech.setTranslations(List.of(
-                BrandTranslationEntity.builder().brand(logitech).locale("en").name("Logitech").build()));
-        logitechId = brandJpa.save(logitech).getId();
+        perifericosId = persistCategory("Periféricos");
+        pantallasId = persistCategory("Pantallas");
+        cablesId = persistCategory("Cables");
+        logitechId = persistBrand("Logitech");
 
         sample = Product.builder()
                 .name("Teclado mecánico")
@@ -74,11 +65,24 @@ class ProductRepositoryAdapterTest {
                 .build();
     }
 
-    private static CategoryEntity categoryWithName(String name) {
+    private Long persistCategory(String name) {
         CategoryEntity category = CategoryEntity.builder().build();
-        category.setTranslations(List.of(
-                CategoryTranslationEntity.builder().category(category).locale("en").name(name).build()));
-        return category;
+        CategoryTranslationEntity translation = CategoryTranslationEntity.builder().category(category).build();
+        translation.setLocale("en");
+        translation.setName(name);
+        category.setTranslations(List.of(translation));
+        em.persist(category);
+        return category.getId();
+    }
+
+    private Long persistBrand(String name) {
+        BrandEntity brand = BrandEntity.builder().build();
+        BrandTranslationEntity translation = BrandTranslationEntity.builder().brand(brand).build();
+        translation.setLocale("en");
+        translation.setName(name);
+        brand.setTranslations(List.of(translation));
+        em.persist(brand);
+        return brand.getId();
     }
 
     @Test
@@ -91,8 +95,9 @@ class ProductRepositoryAdapterTest {
         assertThat(saved.getUpdatedAt()).isNotNull();
         assertThat(saved.getSku()).isEqualTo("KB-001");
         assertThat(saved.getActive()).isTrue();
-        // save() re-reads after insert (see ProductRepositoryAdapter#save) precisely so these
-        // aren't left null from the id-only reference shell ProductEntityMapper writes.
+        // save() vuelve a leer tras el insert (ver ProductRepositoryAdapter#save) precisamente
+        // para que estos campos no queden null por culpa del shell de referencia de solo-id
+        // que escribe ProductEntityMapper.
         assertThat(saved.getCategoryName()).isEqualTo("Periféricos");
         assertThat(saved.getBrandName()).isEqualTo("Logitech");
         assertThat(jpa.count()).isEqualTo(1);

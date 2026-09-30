@@ -7,23 +7,24 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 /**
- * MapStruct-backed implementation of {@link ProductRestMapper}.
+ * Implementación respaldada por MapStruct de {@link ProductRestMapper}.
  *
- * <p>The {@code @Mapper} annotation lives here (not on the port) so that
- * the generated {@code ProductRestMapperAdapterImpl} is emitted next to its
- * infrastructure neighbours, free of any constraint that would force it into
- * the inbound adapter's package. The resulting bean implements
- * {@link ProductRestMapper} and is registered as a Spring component via
+ * <p>La anotación {@code @Mapper} vive aquí (no en el puerto) para que el
+ * {@code ProductRestMapperAdapterImpl} generado se emita junto a sus vecinos de
+ * infraestructura, libre de cualquier restricción que lo forzara al paquete del
+ * adaptador de entrada. El bean resultante implementa
+ * {@link ProductRestMapper} y se registra como componente de Spring mediante
  * {@code componentModel = "spring"}.
  *
- * <p>Every property on {@link com.ej1.app.product.domain.port.ProductSearchCriteria}/
- * {@code ProductRequest} has a same-named counterpart on the other side, so MapStruct's
- * plain field-by-field mapping covers those methods with no overrides needed here.
- * {@code toResponse} is the one exception: {@code ProductResponse.category}/{@code brand}
- * are nested {@code {id, name}} projections built from two separate {@link Product}
- * fields each ({@code categoryId}+{@code categoryName}, {@code brandId}+{@code brandName}),
- * so it's routed to the port's {@link ProductRestMapper#toCategoryRef}/
- * {@link ProductRestMapper#toBrandRef} default methods instead of a 1:1 field match.
+ * <p>Cada propiedad de {@link com.ej1.app.product.domain.port.ProductSearchCriteria}/
+ * {@code ProductRequest} tiene una contraparte con el mismo nombre en el otro lado, así
+ * que el mapeo simple campo a campo de MapStruct cubre esos métodos sin necesidad de
+ * overrides aquí. {@code toResponse} es la única excepción: {@code ProductResponse.category}/
+ * {@code brand} son proyecciones anidadas {@code {id, name}} construidas a partir de dos
+ * campos separados de {@link Product} cada una ({@code categoryId}+{@code categoryName},
+ * {@code brandId}+{@code brandName}), así que se enruta a los métodos default del puerto
+ * {@link ProductRestMapper#toCategoryRef}/{@link ProductRestMapper#toBrandRef} en lugar
+ * de una correspondencia 1:1 de campos.
  */
 @Mapper(componentModel = "spring")
 public interface ProductRestMapperAdapter extends ProductRestMapper {

@@ -3,8 +3,8 @@ package com.ej1.app.product.domain.port;
 import java.math.BigDecimal;
 
 /**
- * Command object representing the intent to create a new product.
- * Part of the domain's incoming port — independent of any transport DTO.
+ * Objeto de comando que representa la intención de crear un nuevo producto.
+ * Forma parte del puerto de entrada del dominio — independiente de cualquier DTO de transporte.
  */
 public record CreateProductCommand(
         String name,

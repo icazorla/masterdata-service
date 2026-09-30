@@ -12,9 +12,9 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * Builds a JPA {@link Specification} from a {@link ProductSearchCriteria}.
- * Lives in {@code infrastructure} — {@code Specification} is a Spring Data
- * JPA type, so the domain port only ever sees the plain criteria record.
+ * Construye una {@link Specification} JPA a partir de un {@link ProductSearchCriteria}.
+ * Vive en {@code infrastructure} — {@code Specification} es un tipo de Spring Data
+ * JPA, así que el puerto de dominio solo ve siempre el simple record de criterios.
  */
 final class ProductSpecifications {
 
@@ -22,13 +22,12 @@ final class ProductSpecifications {
     }
 
     static Specification<ProductEntity> from(ProductSearchCriteria criteria) {
-        // Combine only the filters actually present, folding with AND. Chaining
-        // Specification.where(null).and(...) instead would rely on the "null
-        // Specification == no restriction" convenience Spring Data does NOT
-        // apply consistently across versions — SimpleJpaRepository.findAll
-        // rejects a null Specification outright ("Specification must not be
-        // null"), so an all-null criteria has to fall back to an explicit
-        // always-true predicate rather than a null reference.
+        // Combina solo los filtros realmente presentes, plegando con AND. Encadenar en su
+        // lugar Specification.where(null).and(...) dependería de la conveniencia "Specification
+        // null == sin restricción" que Spring Data NO aplica de forma consistente entre
+        // versiones — SimpleJpaRepository.findAll rechaza directamente una Specification
+        // null ("Specification must not be null"), así que unos criterios todos null tienen
+        // que recurrir a un predicado explícito siempre-verdadero en vez de una referencia null.
         return Stream.of(
                         fetchCategoryAndBrand(),
                         containsIgnoreCase("name", criteria.name()),
@@ -45,12 +44,13 @@ final class ProductSpecifications {
     }
 
     /**
-     * Eagerly joins {@code category}/{@code brand} in the same query instead of leaving
-     * Hibernate to lazily load each one row-by-row for every product in the page —
-     * {@code Product.categoryName}/{@code brandName} need them populated on every read.
-     * Skipped for the {@code COUNT} query Spring Data runs alongside the content query for
-     * paging: a fetch is not allowed there ({@code query.getResultType() == Long.class}
-     * identifies it), and a row count doesn't need the joined data anyway.
+     * Une (join) de forma anticipada {@code category}/{@code brand} en la misma consulta en
+     * vez de dejar que Hibernate cargue cada una perezosamente fila a fila para cada producto
+     * de la página — {@code Product.categoryName}/{@code brandName} las necesitan pobladas
+     * en cada lectura. Se omite para la consulta {@code COUNT} que Spring Data ejecuta junto
+     * a la consulta de contenido para la paginación: ahí no se permite un fetch
+     * ({@code query.getResultType() == Long.class} la identifica), y un conteo de filas
+     * de todos modos no necesita los datos unidos.
      */
     private static Specification<ProductEntity> fetchCategoryAndBrand() {
         return (root, query, cb) -> {
@@ -71,9 +71,9 @@ final class ProductSpecifications {
     }
 
     /**
-     * Matches when the association named {@code field} (e.g. {@code category}, a
-     * {@code @ManyToOne}) has an id in {@code ids} — the equivalent of an OR across
-     * several exact values. {@code null}/empty applies no restriction.
+     * Coincide cuando la asociación llamada {@code field} (p. ej. {@code category}, un
+     * {@code @ManyToOne}) tiene un id incluido en {@code ids} — el equivalente a un OR
+     * entre varios valores exactos. {@code null}/vacío no aplica ninguna restricción.
      */
     private static Specification<ProductEntity> inIds(String field, List<Long> ids) {
         if (CollectionUtils.isEmpty(ids)) {

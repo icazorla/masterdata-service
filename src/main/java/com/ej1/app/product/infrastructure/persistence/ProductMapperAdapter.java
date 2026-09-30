@@ -4,14 +4,14 @@ import com.ej1.app.product.domain.port.ProductMapper;
 import org.mapstruct.Mapper;
 
 /**
- * Infrastructure adapter that implements the {@link ProductMapper} domain port.
+ * Adaptador de infraestructura que implementa el puerto de dominio {@link ProductMapper}.
  *
- * <p>This is where the {@link Mapper} annotation lives (not on the domain interface)
- * so that MapStruct's generated implementation does not depend on classes from the
- * domain runtime — keeping the dependency direction strictly
- * {@code infrastructure → domain}, never the reverse. MapStruct generates the
- * implementation {@code ProductMapperAdapterImpl} in
- * {@code target/generated-sources/annotations/...}, registered as a Spring bean via
+ * <p>Aquí es donde vive la anotación {@link Mapper} (no en la interfaz de dominio)
+ * para que la implementación generada por MapStruct no dependa de clases del runtime
+ * del dominio — manteniendo la dirección de dependencia estrictamente
+ * {@code infrastructure → domain}, nunca al revés. MapStruct genera la
+ * implementación {@code ProductMapperAdapterImpl} en
+ * {@code target/generated-sources/annotations/...}, registrada como bean de Spring mediante
  * {@code componentModel = "spring"}.
  */
 @Mapper(componentModel = "spring")

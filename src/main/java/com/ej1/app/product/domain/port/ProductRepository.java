@@ -1,14 +1,14 @@
 package com.ej1.app.product.domain.port;
 
 import com.ej1.app.product.domain.Product;
-import com.ej1.app.shared.domain.PageResult;
-import com.ej1.app.shared.domain.Paging;
+import com.ej1.app.common.domain.PageResult;
+import com.ej1.app.common.domain.Paging;
 
 import java.util.Optional;
 
 /**
- * Outgoing port for product persistence. The domain defines what it needs
- * from the outside world; infrastructure adapters implement this contract.
+ * Puerto de salida para la persistencia de productos. El dominio define lo que
+ * necesita del mundo exterior; los adaptadores de infraestructura implementan este contrato.
  */
 public interface ProductRepository {
 
@@ -25,9 +25,9 @@ public interface ProductRepository {
     void deleteById(Long id);
 
     /**
-     * Runs a filtered, sorted, paginated search. {@code criteria} carries only filters
-     * (see {@link ProductSearchCriteria}); {@code paging} carries page/size/sort — kept
-     * separate so each is a single source of truth for its own concern.
+     * Ejecuta una búsqueda filtrada, ordenada y paginada. {@code criteria} transporta solo
+     * filtros (ver {@link ProductSearchCriteria}); {@code paging} transporta page/size/sort — se
+     * mantienen separados para que cada uno sea la única fuente de verdad de su propia responsabilidad.
      */
     PageResult<Product> search(ProductSearchCriteria criteria, Paging paging);
 }

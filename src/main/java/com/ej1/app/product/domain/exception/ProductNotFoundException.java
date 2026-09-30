@@ -1,6 +1,6 @@
 package com.ej1.app.product.domain.exception;
 
-import com.ej1.app.shared.domain.exception.NotFoundException;
+import com.ej1.app.common.domain.exception.NotFoundException;
 
 public class ProductNotFoundException extends NotFoundException {
     public ProductNotFoundException(Long id) {

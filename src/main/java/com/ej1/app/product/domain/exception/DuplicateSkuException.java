@@ -1,6 +1,6 @@
 package com.ej1.app.product.domain.exception;
 
-import com.ej1.app.shared.domain.exception.DuplicateResourceException;
+import com.ej1.app.common.domain.exception.DuplicateResourceException;
 
 public class DuplicateSkuException extends DuplicateResourceException {
     public DuplicateSkuException(String sku) {

@@ -3,8 +3,8 @@ package com.ej1.app.product.infrastructure.persistence;
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
-import com.ej1.app.shared.domain.PageResult;
-import com.ej1.app.shared.domain.Paging;
+import com.ej1.app.common.domain.PageResult;
+import com.ej1.app.common.domain.Paging;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -44,12 +44,13 @@ public class ProductRepositoryAdapter implements ProductRepository {
 
     @Override
     public Product save(Product product) {
-        // mapper.toEntity resolves category/brand via EntityManager.getReference — a real
-        // Hibernate proxy, not a detached POJO — so toDomain's category.name/brand.name
-        // mapping lazily initializes it here (one SELECT) instead of coming back null.
-        // A plain re-fetch wouldn't achieve the same thing: within this same persistence
-        // context, jpa.findById(id) right after save() would just return the identity-mapped
-        // instance we already hold, unqueried, ignoring any @EntityGraph.
+        // mapper.toEntity resuelve category/brand mediante EntityManager.getReference — un
+        // proxy real de Hibernate, no un POJO detached — así que el mapeo
+        // category.name/brand.name de toDomain lo inicializa perezosamente aquí (un SELECT)
+        // en vez de volver como null. Un simple re-fetch no lograría lo mismo: dentro de este
+        // mismo contexto de persistencia, jpa.findById(id) justo después de save() devolvería
+        // simplemente la instancia ya mapeada por identidad que ya tenemos, sin consultar,
+        // ignorando cualquier @EntityGraph.
         return mapper.toDomain(jpa.save(mapper.toEntity(product, entityManager)));
     }
 
@@ -72,12 +73,13 @@ public class ProductRepositoryAdapter implements ProductRepository {
     }
 
     /**
-     * {@code categoryId}/{@code brandId} are {@code Product}'s (domain) sortable field
-     * names — {@link com.ej1.app.product.domain.service.ProductService#ALLOWED_SORT_FIELDS}
-     * validates against those. {@link ProductEntity} has no such property, only the
-     * {@code category}/{@code brand} associations, so a domain-facing sort name is
-     * translated to the JPA property path (nested, resolved via a join) here, at the
-     * infrastructure boundary — the only layer that knows about {@link ProductEntity}'s shape.
+     * {@code categoryId}/{@code brandId} son los nombres de campo ordenables de
+     * {@code Product} (dominio) — {@link com.ej1.app.product.domain.service.ProductService#ALLOWED_SORT_FIELDS}
+     * valida contra ellos. {@link ProductEntity} no tiene esa propiedad, solo las
+     * asociaciones {@code category}/{@code brand}, así que un nombre de orden orientado
+     * al dominio se traduce aquí a la ruta de propiedad JPA (anidada, resuelta mediante
+     * un join), en la frontera de infraestructura — la única capa que conoce la forma
+     * de {@link ProductEntity}.
      */
     private static String toEntitySortProperty(String sortBy) {
         return switch (sortBy) {

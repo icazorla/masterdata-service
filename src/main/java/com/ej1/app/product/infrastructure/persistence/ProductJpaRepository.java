@@ -11,10 +11,11 @@ import java.util.Optional;
 public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>, JpaSpecificationExecutor<ProductEntity> {
 
     /**
-     * {@code category}/{@code brand} are {@code fetch = LAZY} on {@link ProductEntity} (the safe
-     * default for a {@code @ManyToOne}); this entity graph loads them in the same query instead of
-     * lazily one row at a time, since the domain ({@code Product.categoryName}/{@code brandName})
-     * needs them populated whenever a single product is read.
+     * {@code category}/{@code brand} son {@code fetch = LAZY} en {@link ProductEntity} (el valor
+     * por defecto seguro para un {@code @ManyToOne}); este entity graph las carga en la misma
+     * consulta en vez de perezosamente fila a fila, ya que el dominio
+     * ({@code Product.categoryName}/{@code brandName}) las necesita pobladas siempre que se lee
+     * un único producto.
      */
     @EntityGraph(attributePaths = {"category", "brand"})
     @Override

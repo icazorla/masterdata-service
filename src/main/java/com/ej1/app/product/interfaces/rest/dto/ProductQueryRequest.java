@@ -14,16 +14,17 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Query criteria for {@code POST /api/products/query} — the request body
- * carries the filters instead of URL parameters, per RFC 10008 ("The HTTP
- * QUERY Method") semantics. All filters are optional and combine with AND.
+ * Criterios de consulta para {@code POST /api/products/query} — el cuerpo de la
+ * petición transporta los filtros en lugar de parámetros de URL, siguiendo la
+ * semántica de la RFC 10008 ("The HTTP QUERY Method"). Todos los filtros son
+ * opcionales y se combinan con AND.
  *
- * <p>Pagination and sort ({@code page}/{@code size}/{@code sortBy}/
- * {@code sortDirection}) are deliberately <em>not</em> part of this body: they
- * travel as regular query parameters instead, the same way they do on
- * {@code GET /api/products} — see {@code ProductController.query}. That keeps
- * "what to search for" (body) and "how to page/sort the result" (query params)
- * on the transport channel each one conventionally belongs to.
+ * <p>La paginación y el orden ({@code page}/{@code size}/{@code sortBy}/
+ * {@code sortDirection}) deliberadamente <em>no</em> forman parte de este cuerpo:
+ * viajan como parámetros de consulta normales, igual que en
+ * {@code GET /api/products} — ver {@code ProductController.query}. Eso mantiene
+ * "qué buscar" (cuerpo) y "cómo paginar/ordenar el resultado" (parámetros de
+ * consulta) en el canal de transporte al que cada uno pertenece por convención.
  */
 @Data
 @NoArgsConstructor

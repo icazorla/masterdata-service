@@ -1,10 +1,11 @@
 package com.ej1.app.product.interfaces.rest.dto;
 
 /**
- * Lean {@code {id, name}} projection of a category, embedded in {@link ProductResponse}.
- * Deliberately not {@code com.ej1.app.category.interfaces.rest.dto.CategoryResponse}
- * (which also carries {@code description}/timestamps) — a product listing only needs
- * enough to identify and label the category, not the full master-data record.
+ * Proyección ligera {@code {id, name}} de una categoría, embebida en {@link ProductResponse}.
+ * Deliberadamente no es {@code com.ej1.app.common.catalog.interfaces.rest.dto.CatalogResponse}
+ * (que también lleva {@code description}/timestamps) — un listado de productos solo
+ * necesita lo suficiente para identificar y etiquetar la categoría, no el registro completo
+ * de datos maestros.
  */
 public record CategoryRef(Long id, String name) {
 }

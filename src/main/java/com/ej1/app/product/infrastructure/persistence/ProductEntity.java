@@ -1,14 +1,11 @@
 package com.ej1.app.product.infrastructure.persistence;
 
-import com.ej1.app.brand.infrastructure.persistence.BrandEntity;
-import com.ej1.app.category.infrastructure.persistence.CategoryEntity;
-import com.ej1.app.shared.infrastructure.persistence.AuditableEntity;
+import com.ej1.app.catalog.BrandEntity;
+import com.ej1.app.catalog.CategoryEntity;
+import com.ej1.app.common.infrastructure.persistence.AuditableEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -31,10 +28,6 @@ import java.math.BigDecimal;
 @Builder
 public class ProductEntity extends AuditableEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
     @Column(nullable = false, length = 120)
     private String name;
 
@@ -51,9 +44,10 @@ public class ProductEntity extends AuditableEntity {
     private String sku;
 
     /**
-     * Excluded from {@code equals}/{@code hashCode}/{@code toString} (Lombok's {@code @Data}
-     * would otherwise touch this lazy association's proxy outside a Hibernate session, e.g.
-     * when logging or asserting on a detached entity, throwing {@code LazyInitializationException}).
+     * Excluido de {@code equals}/{@code hashCode}/{@code toString} (de lo contrario, el
+     * {@code @Data} de Lombok tocaría el proxy de esta asociación perezosa fuera de una sesión
+     * de Hibernate, por ejemplo al loguear o al hacer aserciones sobre una entidad detached,
+     * lanzando {@code LazyInitializationException}).
      */
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

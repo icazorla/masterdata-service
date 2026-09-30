@@ -1,10 +1,11 @@
 /**
- * REST DTOs for the product API (requests/responses exchanged over HTTP).
+ * DTOs REST para la API de producto (peticiones/respuestas intercambiadas por HTTP).
  *
- * <p>Marked {@link org.jspecify.annotations.NullMarked} so type parameters/arguments in
- * this package (e.g. {@code ResponseEntity<ProductResponse>}) are known to be non-null
- * by default, matching Spring Framework 7's JSpecify-based null-safety. Any field or
- * parameter here that may legitimately be {@code null} must be explicitly annotated
+ * <p>Marcado con {@link org.jspecify.annotations.NullMarked} para que los parámetros/
+ * argumentos de tipo en este paquete (p. ej. {@code ResponseEntity<ProductResponse>}) se
+ * consideren no nulos por defecto, en línea con la seguridad frente a nulos basada en
+ * JSpecify de Spring Framework 7. Cualquier campo o parámetro aquí que pueda ser
+ * legítimamente {@code null} debe anotarse explícitamente con
  * {@link org.jspecify.annotations.Nullable}.
  */
 @NullMarked

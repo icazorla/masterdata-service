@@ -3,12 +3,12 @@ package com.ej1.app.product.domain.port;
 import com.ej1.app.product.domain.Product;
 
 /**
- * Domain mapper port. Maps {@link CreateProductCommand} / {@link UpdateProductCommand}
- * to the {@link Product} aggregate.
+ * Puerto del mapper de dominio. Mapea {@link CreateProductCommand} / {@link UpdateProductCommand}
+ * hacia el agregado {@link Product}.
  *
- * <p>This interface is part of the domain contract but carries no Spring or MapStruct
- * annotations — those concerns are pushed to the infrastructure adapter
- * ({@code ProductMapperAdapter}), which implements this port and is bound to Spring.
+ * <p>Esta interfaz forma parte del contrato de dominio pero no lleva anotaciones de
+ * Spring ni de MapStruct — esas responsabilidades se delegan al adaptador de infraestructura
+ * ({@code ProductMapperAdapter}), que implementa este puerto y está ligado a Spring.
  */
 public interface ProductMapper {
 

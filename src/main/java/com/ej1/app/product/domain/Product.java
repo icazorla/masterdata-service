@@ -1,24 +1,24 @@
 package com.ej1.app.product.domain;
 
-import com.ej1.app.shared.domain.Auditable;
+import com.ej1.app.common.domain.Auditable;
 import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * {@code categoryId}/{@code brandId} are the real reference — the only fields commands
- * write and search filters match on, per the DDD convention of referencing another
- * aggregate by identity only. {@code categoryName}/{@code brandName} are a read-only,
- * denormalized label carried alongside for display: populated by the persistence adapter
- * when reading (via the {@code ProductEntity} association, fetched with the row in one
- * query — see {@code ProductEntityMapper}), always {@code null} on a freshly-built command
- * draft, and ignored by {@code ProductMapper} (commands never set it).
+ * {@code categoryId}/{@code brandId} son la referencia real — los únicos campos que
+ * los comandos escriben y que los filtros de búsqueda comparan, siguiendo la convención
+ * DDD de referenciar otro agregado solo por identidad. {@code categoryName}/{@code brandName}
+ * son una etiqueta desnormalizada de solo lectura que se transporta junto a ellos para
+ * mostrarla: la puebla el adaptador de persistencia al leer (mediante la asociación de
+ * {@code ProductEntity}, obtenida junto con la fila en una sola consulta — ver
+ * {@code ProductEntityMapper}), siempre es {@code null} en un borrador de comando recién
+ * construido, y {@code ProductMapper} la ignora (los comandos nunca la establecen).
  */
 @Getter
 public final class Product extends Auditable {
 
-    private final Long id;
     private final String name;
     private final String description;
     private final BigDecimal price;
@@ -35,8 +35,7 @@ public final class Product extends Auditable {
     private final Boolean active;
 
     private Product(Builder b) {
-        super(b.createdAt, b.updatedAt);
-        this.id = b.id;
+        super(b.id, b.createdAt, b.updatedAt);
         this.name = b.name;
         this.description = b.description;
         this.price = b.price;
@@ -81,7 +80,7 @@ public final class Product extends Auditable {
 
     public Builder toBuilder() {
         return new Builder()
-                .id(this.id)
+                .id(this.getId())
                 .name(this.name)
                 .description(this.description)
                 .price(this.price)

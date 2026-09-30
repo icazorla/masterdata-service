@@ -1,9 +1,8 @@
 package com.ej1.app.product.domain.service;
 
-import com.ej1.app.brand.domain.exception.BrandNotFoundException;
-import com.ej1.app.brand.domain.port.BrandRepository;
-import com.ej1.app.category.domain.exception.CategoryNotFoundException;
-import com.ej1.app.category.domain.port.CategoryRepository;
+import com.ej1.app.common.catalog.domain.CatalogType;
+import com.ej1.app.common.catalog.domain.exception.CatalogNotFoundException;
+import com.ej1.app.common.catalog.domain.service.CatalogService;
 import com.ej1.app.product.domain.Product;
 import com.ej1.app.product.domain.exception.DuplicateSkuException;
 import com.ej1.app.product.domain.exception.InvalidProductQueryException;
@@ -14,8 +13,8 @@ import com.ej1.app.product.domain.port.ProductRepository;
 import com.ej1.app.product.domain.port.ProductSearchCriteria;
 import com.ej1.app.product.domain.port.UpdateProductCommand;
 import com.ej1.app.product.infrastructure.persistence.ProductMapperAdapter;
-import com.ej1.app.shared.domain.PageResult;
-import com.ej1.app.shared.domain.Paging;
+import com.ej1.app.common.domain.PageResult;
+import com.ej1.app.common.domain.Paging;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,10 +48,7 @@ class ProductServiceTest {
     private ProductMapper mapper = Mappers.getMapper(ProductMapperAdapter.class);
 
     @Mock
-    private CategoryRepository categoryRepository;
-
-    @Mock
-    private BrandRepository brandRepository;
+    private CatalogService catalogService;
 
     @InjectMocks
     private ProductService service;
@@ -148,8 +144,8 @@ class ProductServiceTest {
     @DisplayName("create persiste el producto cuando el SKU es nuevo")
     void create_persistsWhenSkuNew() {
         when(repository.existsBySku("KB-001")).thenReturn(false);
-        when(categoryRepository.existsById(1L)).thenReturn(true);
-        when(brandRepository.existsById(3L)).thenReturn(true);
+        when(catalogService.existsById(CatalogType.CATEGORY, 1L)).thenReturn(true);
+        when(catalogService.existsById(CatalogType.BRAND, 3L)).thenReturn(true);
         when(repository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Product result = service.create(validCreate);
@@ -173,27 +169,27 @@ class ProductServiceTest {
     }
 
     @Test
-    @DisplayName("create lanza CategoryNotFoundException cuando categoryId no existe")
+    @DisplayName("create lanza CatalogNotFoundException cuando categoryId no existe")
     void create_throwsWhenCategoryDoesNotExist() {
         when(repository.existsBySku("KB-001")).thenReturn(false);
-        when(categoryRepository.existsById(1L)).thenReturn(false);
+        when(catalogService.existsById(CatalogType.CATEGORY, 1L)).thenReturn(false);
 
         assertThatThrownBy(() -> service.create(validCreate))
-                .isInstanceOf(CategoryNotFoundException.class)
+                .isInstanceOf(CatalogNotFoundException.class)
                 .hasMessageContaining("1");
 
         verify(repository, never()).save(any());
     }
 
     @Test
-    @DisplayName("create lanza BrandNotFoundException cuando brandId no existe")
+    @DisplayName("create lanza CatalogNotFoundException cuando brandId no existe")
     void create_throwsWhenBrandDoesNotExist() {
         when(repository.existsBySku("KB-001")).thenReturn(false);
-        when(categoryRepository.existsById(1L)).thenReturn(true);
-        when(brandRepository.existsById(3L)).thenReturn(false);
+        when(catalogService.existsById(CatalogType.CATEGORY, 1L)).thenReturn(true);
+        when(catalogService.existsById(CatalogType.BRAND, 3L)).thenReturn(false);
 
         assertThatThrownBy(() -> service.create(validCreate))
-                .isInstanceOf(BrandNotFoundException.class)
+                .isInstanceOf(CatalogNotFoundException.class)
                 .hasMessageContaining("3");
 
         verify(repository, never()).save(any());
@@ -209,8 +205,8 @@ class ProductServiceTest {
                 null, null, null, null,
                 null);
         when(repository.existsBySku(anyString())).thenReturn(false);
-        when(categoryRepository.existsById(1L)).thenReturn(true);
-        when(brandRepository.existsById(3L)).thenReturn(true);
+        when(catalogService.existsById(CatalogType.CATEGORY, 1L)).thenReturn(true);
+        when(catalogService.existsById(CatalogType.BRAND, 3L)).thenReturn(true);
         when(repository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Product result = service.create(withoutActive);

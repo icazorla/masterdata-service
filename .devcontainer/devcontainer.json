@@ -1,0 +1,22 @@
+{
+  "name": "ej1",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/ej1",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "17",
+      "installMaven": "true"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "vmware.vscode-boot-dev-pack",
+        "ms-ossdata.vscode-pgsql"
+      ]
+    }
+  },
+  "forwardPorts": [8080, 5432]
+}

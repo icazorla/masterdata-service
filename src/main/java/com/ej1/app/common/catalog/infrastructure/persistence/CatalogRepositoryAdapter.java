@@ -5,8 +5,11 @@ import com.ej1.app.common.catalog.domain.CatalogTranslation;
 import com.ej1.app.common.catalog.domain.CatalogType;
 import com.ej1.app.common.catalog.domain.port.CatalogRepository;
 import com.ej1.app.common.catalog.domain.port.CatalogSearchCriteria;
+import com.ej1.app.common.domain.PageResult;
+import com.ej1.app.common.domain.Paging;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
@@ -87,8 +90,19 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
     }
 
     @Override
+    public PageResult<Catalog> findPage(CatalogType type, String locale, CatalogSearchCriteria criteria, Paging paging) {
+        return findPageGeneric(descriptorFor(type), locale, criteria, paging);
+    }
+
+    @Override
     public Set<String> sortableExtraFields(CatalogType type) {
         return Set.copyOf(descriptorFor(type).extraFields());
+    }
+
+    @Override
+    public Map<String, String> extraFieldTypes(CatalogType type) {
+        CatalogTypeDescriptor<?, ?> descriptor = descriptorFor(type);
+        return CatalogExtraFieldsAccessor.dataTypes(descriptor.entityClass(), descriptor.extraFields());
     }
 
     @Override
@@ -149,8 +163,16 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
      * {@code website} para {@code brand}) en cambio viven en la entidad padre, no en la
      * traducción — no se traducen por locale — así que su expresión de orden es simplemente
      * {@code e.<campo>}, sin {@code coalesce} ni depender de qué traducción se resolvió (ver
-     * {@link #orderByExpression}). Datos maestros — sin paginación (ver
-     * {@link CatalogRepository#findAll}).
+     * {@link #orderByExpression}). Sin paginación — ver {@link #findPageGeneric} para la
+     * variante paginada, que comparte este mismo {@code from}/{@code where}
+     * ({@link #fromWhereClause}).
+     *
+     * <p>{@code weight} manda siempre como primer criterio de orden, descendente, antes que
+     * {@code sortBy} — ver {@link #orderByClauses}. Esto es deliberado: {@code weight} es un
+     * peso de ordenación manual (p. ej. destacar una marca), así que una entrada con peso
+     * alto aparece siempre por delante sin importar por qué campo o dirección se ordene el
+     * resto; {@code sortBy}/{@code sortDirection} solo deciden el desempate entre entradas
+     * del mismo peso.
      *
      * <p>Cuando se dan {@code name} y {@code description} a la vez se combinan con OR
      * (coincide si el nombre o la descripción contienen el filtro), no con AND — cada uno
@@ -160,14 +182,85 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
      * join devuelve como máximo una fila por entrada.
      *
      * <p>{@code sortBy}/{@code sortDirection} llegan ya validados como campo ordenable/
-     * ASC-DESC por {@code CatalogService#findAll}; aun así se resuelven aquí a través de
+     * ASC-DESC por {@code CatalogQueryService#findAll}; aun así se resuelven aquí a través de
      * {@link #orderByExpression}/{@link #sortDirectionSql} (en vez de concatenarlos
      * directamente en el JPQL) para que este método nunca dependa de esa validación
-     * externa para ser seguro frente a inyección.
+     * externa para ser seguro frente a inyección. {@code e.id} se añade como desempate
+     * final para que el orden sea total y estable — imprescindible al paginar (sin él,
+     * entradas con el mismo valor de {@code weight}/{@code sortBy} podrían repetirse o
+     * perderse entre páginas), e inocuo sin paginar.
      */
     private <E extends CatalogEntity<TE>, TE extends CatalogTranslationEntity<E>> List<Catalog> findAllGeneric(
             CatalogTypeDescriptor<E, TE> d, String locale, CatalogSearchCriteria criteria, String sortBy, String sortDirection) {
-        StringBuilder jpql = new StringBuilder("select e from " + d.entityClass().getSimpleName() + " e "
+        return selectQuery(d, locale, criteria, sortBy, sortDirection)
+                .getResultList().stream().map(e -> toDomain(d, e)).toList();
+    }
+
+    /**
+     * Mismo filtro/orden que {@link #findAllGeneric}, limitado a una página con
+     * {@code setFirstResult}/{@code setMaxResults} (no hay fetch joins de colecciones, así
+     * que el límite se aplica en SQL, no en memoria) más un {@code count} sobre el mismo
+     * {@code from}/{@code where} para el total. El {@code count} solo se lanza cuando la
+     * página no permite deducir el total por sí sola — p. ej. una primera página incompleta
+     * ya es el total. Un offset que no cabe en un {@code int} (página absurdamente alta)
+     * queda necesariamente fuera de rango: página vacía, sin lanzar la consulta de datos.
+     */
+    private <E extends CatalogEntity<TE>, TE extends CatalogTranslationEntity<E>> PageResult<Catalog> findPageGeneric(
+            CatalogTypeDescriptor<E, TE> d, String locale, CatalogSearchCriteria criteria, Paging paging) {
+        long offset = (long) paging.page() * paging.size();
+        List<Catalog> content = offset > Integer.MAX_VALUE
+                ? List.of()
+                : selectQuery(d, locale, criteria, paging.sortBy(), paging.sortDirection())
+                        .setFirstResult((int) offset)
+                        .setMaxResults(paging.size())
+                        .getResultList().stream().map(e -> toDomain(d, e)).toList();
+
+        long total;
+        if (!content.isEmpty() && content.size() < paging.size()) {
+            total = offset + content.size();
+        } else {
+            TypedQuery<Long> countQuery = em.createQuery("select count(e) " + fromWhereClause(d, criteria), Long.class);
+            bindFilterParameters(countQuery, locale, criteria);
+            total = countQuery.getSingleResult();
+        }
+        int totalPages = (int) ((total + paging.size() - 1) / paging.size());
+        return new PageResult<>(content, paging.page(), paging.size(), total, totalPages);
+    }
+
+    private <E extends CatalogEntity<TE>, TE extends CatalogTranslationEntity<E>> TypedQuery<E> selectQuery(
+            CatalogTypeDescriptor<E, TE> d, String locale, CatalogSearchCriteria criteria, String sortBy, String sortDirection) {
+        String jpql = "select e " + fromWhereClause(d, criteria)
+                + " order by " + orderByClauses(sortBy, sortDirection, d.extraFields())
+                + ", e.id asc";
+        TypedQuery<E> query = em.createQuery(jpql, d.entityClass());
+        bindFilterParameters(query, locale, criteria);
+        return query;
+    }
+
+    /**
+     * {@code weight} es siempre el primer criterio de orden, descendente (un peso alto
+     * destaca siempre primero), sin importar qué pida {@code sortDirection} — eso solo
+     * gobierna el campo secundario, {@code sortBy}. Excepción: si {@code sortBy} ya es
+     * {@code "weight"}, no hay un campo secundario distinto que añadir — en ese caso se
+     * respeta directamente la dirección pedida para {@code weight} en lugar de forzar
+     * descendente e ignorar un {@code sortDirection=ASC} explícito sobre ese mismo campo
+     * (un segundo {@code "e.weight <dir>"} tras el {@code "e.weight desc"} inicial tampoco
+     * podría reordenar nada: dentro de cada grupo de ese primer criterio todas las filas
+     * comparten ya el mismo valor).
+     */
+    private static String orderByClauses(String sortBy, String sortDirection, List<String> extraFields) {
+        if ("weight".equals(sortBy)) {
+            return "e.weight " + sortDirectionSql(sortDirection);
+        }
+        return "e.weight desc, " + orderByExpression(sortBy, extraFields) + ' ' + sortDirectionSql(sortDirection);
+    }
+
+    /**
+     * {@code from ... where ...} común a la consulta de datos y a la de {@code count} — ver
+     * {@link #findAllGeneric} para el porqué de los dos joins y del {@code coalesce}.
+     */
+    private static String fromWhereClause(CatalogTypeDescriptor<?, ?> d, CatalogSearchCriteria criteria) {
+        StringBuilder jpql = new StringBuilder("from " + d.entityClass().getSimpleName() + " e "
                 + "join e.translations tDefault "
                 + "left join e.translations tLocale on tLocale.locale = :locale "
                 + "where tDefault.locale = :defaultLocale");
@@ -181,18 +274,18 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
         if (!filterConditions.isEmpty()) {
             jpql.append(" and (").append(String.join(" or ", filterConditions)).append(")");
         }
-        jpql.append(" order by ").append(orderByExpression(sortBy, d.extraFields())).append(' ').append(sortDirectionSql(sortDirection));
+        return jpql.toString();
+    }
 
-        TypedQuery<E> query = em.createQuery(jpql.toString(), d.entityClass())
-                .setParameter("locale", locale)
-                .setParameter("defaultLocale", defaultLocale);
+    private void bindFilterParameters(Query query, String locale, CatalogSearchCriteria criteria) {
+        query.setParameter("locale", locale);
+        query.setParameter("defaultLocale", defaultLocale);
         if (criteria.name() != null) {
             query.setParameter("name", "%" + criteria.name() + "%");
         }
         if (criteria.description() != null) {
             query.setParameter("description", "%" + criteria.description() + "%");
         }
-        return query.getResultList().stream().map(e -> toDomain(d, e)).toList();
     }
 
     /**

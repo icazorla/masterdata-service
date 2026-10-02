@@ -7,6 +7,7 @@ import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import org.springdoc.core.customizers.GlobalOperationCustomizer;
+import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,7 +20,10 @@ import java.util.List;
  * paquete de la feature {@code product} ya que describe la API en su conjunto,
  * no un agregado concreto.
  *
- * <p>UI: {@code /swagger-ui.html} — Spec: {@code /v3/api-docs}
+ * <p>La API se publica como dos documentos OpenAPI separados (ver {@link #queryApi()} y
+ * {@link #adminApi()}), seleccionables desde el desplegable de Swagger UI.
+ *
+ * <p>UI: {@code /swagger-ui.html} — Specs: {@code /v3/api-docs/consulta}, {@code /v3/api-docs/gestion}
  */
 @Configuration
 public class OpenApiConfig {
@@ -29,10 +33,30 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("app API")
-                        .description("Spring Boot 4.1 starter project — Product CRUD (Hexagonal Architecture)")
+                        .description("Spring Boot 4.1 starter project — catálogos de datos maestros (Hexagonal Architecture)")
                         .version("v0.0.1")
                         .contact(new Contact().name("app"))
                         .license(new License().name("Unlicense")));
+    }
+
+    /** API de consulta: solo lectura, localizada según {@code Accept-Language} — para clientes finales. */
+    @Bean
+    public GroupedOpenApi queryApi() {
+        return GroupedOpenApi.builder()
+                .group("consulta")
+                .displayName("Consulta (/api)")
+                .pathsToMatch("/api/**")
+                .build();
+    }
+
+    /** API de gestión: CRUD completo con todas las traducciones — para el backoffice. */
+    @Bean
+    public GroupedOpenApi adminApi() {
+        return GroupedOpenApi.builder()
+                .group("gestion")
+                .displayName("Gestión (/admin/api)")
+                .pathsToMatch("/admin/api/**")
+                .build();
     }
 
     /**

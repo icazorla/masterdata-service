@@ -1,151 +1,433 @@
 # app
 
-Spring Boot 4.1.0 starter project.
+API REST (Spring Boot 4.1) para la **gestión genérica de tablas de catálogo** (datos maestros como marcas o categorías), con traducciones por idioma, búsqueda, ordenación y actualización parcial vía JSON Patch. Arquitectura hexagonal.
+
+## Índice
+- [Características funcionales](#características-funcionales)
+  - [Gestión genérica de catálogos](#1-gestión-genérica-de-catálogos)
+  - [Operaciones disponibles](#2-operaciones-disponibles)
+  - [Consultas: filtrado, ordenación y paginación](#3-consultas-filtrado-ordenación-y-paginación)
+  - [Multi-idioma (i18n)](#4-multi-idioma-i18n)
+  - [Campos adicionales por tipo](#5-campos-adicionales-por-tipo)
+  - [Actualización parcial con JSON Patch](#6-actualización-parcial-con-json-patch-rfc-6902)
+  - [Validaciones y reglas de negocio](#7-validaciones-y-reglas-de-negocio)
+  - [Errores](#8-errores)
+  - [Caché](#9-caché)
+  - [Añadir un nuevo tipo de catálogo](#10-añadir-un-nuevo-tipo-de-catálogo)
+- [Stack](#stack) · [Base de datos](#base-de-datos) · [Run](#run) · [Swagger](#api-docs-swagger) · [Build y tests](#build-y-tests) · [Arquitectura](#arquitectura)
+
+---
+
+## Características funcionales
+
+### 1. Gestión genérica de catálogos
+
+Un **único conjunto de endpoints** gestiona cualquier tabla de catálogo. El tipo de catálogo es un segmento de la ruta, y hay **dos APIs separadas** por prefijo:
+
+```
+/api/catalogs/{type}          API de consulta  — solo lectura, localizada (front, otros servicios)
+/admin/api/catalogs/{type}    API de gestión   — CRUD completo, con todas las traducciones (backoffice)
+```
+
+| | Consulta (`/api/...`) | Gestión (`/admin/api/...`) |
+|---|---|---|
+| Métodos | solo `GET` (el resto → **405**) | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
+| `name`/`description` | uno solo, en el idioma de `Accept-Language` | **todas** las traducciones (`translations.<locale>`) |
+| Listado | sin paginar por defecto (`paged=false`) | paginado por defecto (`paged=true`) |
+
+Separarlas por prefijo permite proteger, cachear o enrutar la de gestión con una sola regla (`/admin/**`).
+
+| `{type}`   | Tablas                              | Campos adicionales |
+|------------|-------------------------------------|--------------------|
+| `brand`    | `brands` + `brand_translations`     | `website`          |
+| `category` | `categories` + `category_translations` | —               |
+
+- `{type}` no distingue mayúsculas (`/api/catalogs/Brand` = `/api/catalogs/brand`).
+- Un tipo no configurado (p. ej. `/api/catalogs/widget`) devuelve **400**.
+- Los tipos se declaran en `application.yml` (`app.catalog.types`); añadir uno nuevo **no requiere código** de controller, servicio ni repositorio (ver [punto 10](#10-añadir-un-nuevo-tipo-de-catálogo)).
+
+Cada entrada de catálogo tiene:
+
+| Campo         | Tipo       | Traducido | Descripción |
+|---------------|------------|-----------|-------------|
+| `id`          | número     | —         | Autogenerado |
+| `type`        | texto      | —         | Tipo de catálogo (`brand`, `category`…) |
+| `name`        | texto      | sí        | Nombre (máx. 80), único por tipo e idioma |
+| `description` | texto      | sí        | Descripción opcional (máx. 500) |
+| `weight`      | entero     | no        | Peso para ordenación manual (p. ej. destacar entradas). Por defecto `0` |
+| campos extra  | según tipo | no        | Propios de cada tipo (p. ej. `website` en `brand`) |
+| `createdAt` / `updatedAt` | fecha-hora | — | Gestionados automáticamente |
+
+### 2. Operaciones disponibles
+
+**API de consulta**
+
+| Método | Ruta                          | Operación | Respuesta OK |
+|--------|-------------------------------|-----------|--------------|
+| GET    | `/api/catalogs`               | Listar los tipos de catálogo y los campos de cada uno | 200 + lista |
+| GET    | `/api/catalogs/{type}`        | Listar entradas, con filtro y ordenación (en el idioma del cliente) | 200 + lista |
+| GET    | `/api/catalogs/{type}/{id}`   | Obtener una entrada (en el idioma del cliente) | 200 |
+
+**API de gestión**
+
+| Método | Ruta                                | Operación | Respuesta OK |
+|--------|-------------------------------------|-----------|--------------|
+| GET    | `/admin/api/catalogs/{type}`        | Listar entradas con **todas** sus traducciones (paginado por defecto) | 200 + lista |
+| GET    | `/admin/api/catalogs/{type}/{id}`   | Obtener una entrada con **todas** sus traducciones | 200 |
+| POST   | `/admin/api/catalogs/{type}`        | Crear una entrada | 201 + cabecera `Location` |
+| PUT    | `/admin/api/catalogs/{type}/{id}`   | Reemplazar una entrada completa | 200 |
+| PATCH  | `/admin/api/catalogs/{type}/{id}`   | Modificación parcial (JSON Patch, RFC 6902) | 200 |
+| DELETE | `/admin/api/catalogs/{type}/{id}`   | Eliminar una entrada | 204 |
+
+**Tipos de catálogo y sus campos** (`GET /api/catalogs`, nombre del tipo según `Accept-Language`):
+
+```json
+[
+  {
+    "type": "brand",
+    "name": "Marca",
+    "fields": [
+      { "name": "id",          "dataType": "integer",   "required": false, "readOnly": true,  "translatable": false, "sortable": false, "extra": false },
+      { "name": "name",        "dataType": "string",    "required": true,  "readOnly": false, "translatable": true,  "sortable": true,  "extra": false },
+      { "name": "description", "dataType": "string",    "required": false, "readOnly": false, "translatable": true,  "sortable": true,  "extra": false },
+      { "name": "weight",      "dataType": "integer",   "required": false, "readOnly": false, "translatable": false, "sortable": true,  "extra": false },
+      { "name": "createdAt",   "dataType": "date-time", "required": false, "readOnly": true,  "translatable": false, "sortable": false, "extra": false },
+      { "name": "updatedAt",   "dataType": "date-time", "required": false, "readOnly": true,  "translatable": false, "sortable": false, "extra": false },
+      { "name": "website",     "dataType": "string",    "required": false, "readOnly": false, "translatable": false, "sortable": true,  "extra": true }
+    ]
+  },
+  { "type": "category", "name": "Categoría", "fields": [ "...solo los campos comunes..." ] }
+]
+```
+
+- Los tipos salen de `app.catalog.types`, en el orden de `application.yml`.
+- `extra: true` marca los campos de `extra-fields`; su `dataType` se deduce del tipo Java de la columna en la entidad.
+- `translatable: true` indica que en el payload el campo va dentro de `translations.<locale>`.
+
+**Crear / reemplazar (POST / PUT)** — payload:
+
+```json
+{
+  "weight": 10,
+  "website": "https://www.logitech.com",
+  "translations": {
+    "en": { "name": "Logitech", "description": "Peripheral manufacturer" },
+    "es": { "name": "Logitech", "description": "Fabricante de periféricos" }
+  }
+}
+```
+
+- `translations` es obligatorio; clave = idioma, y debe incluir siempre `en` (idioma por defecto).
+- `weight` es opcional (por defecto `0`).
+- Los campos extra van como atributos de primer nivel.
+- PUT **reemplaza todo**: un idioma o campo extra que no se envíe se elimina.
+
+**Respuesta de la API de consulta** (en el idioma pedido con `Accept-Language`):
+
+```json
+{
+  "id": 1,
+  "type": "brand",
+  "name": "Logitech",
+  "description": "Fabricante de periféricos",
+  "weight": 10,
+  "website": "https://www.logitech.com",
+  "createdAt": "2026-10-01T10:00:00",
+  "updatedAt": "2026-10-01T10:00:00"
+}
+```
+
+**Respuesta de la API de gestión** (`GET`/`POST`/`PUT`/`PATCH` bajo `/admin/api/...`): todas las traducciones, con la misma forma que el payload de POST/PUT:
+
+```json
+{
+  "id": 1,
+  "type": "brand",
+  "weight": 10,
+  "translations": {
+    "en": { "name": "Logitech", "description": "Peripheral manufacturer" },
+    "es": { "name": "Logitech", "description": "Fabricante de periféricos" }
+  },
+  "website": "https://www.logitech.com",
+  "createdAt": "2026-10-01T10:00:00",
+  "updatedAt": "2026-10-01T10:00:00"
+}
+```
+
+**Eliminar**: devuelve 404 si no existe y **409** si otra tabla todavía referencia la entrada.
+
+### 3. Consultas: filtrado, ordenación y paginación
+
+`GET /api/catalogs/{type}` (y `GET /admin/api/catalogs/{type}`) admite estos query params, todos opcionales:
+
+| Parámetro       | Valor por defecto | Descripción |
+|-----------------|-------------------|-------------|
+| `name`          | —                 | Filtra por nombre |
+| `description`   | —                 | Filtra por descripción |
+| `sortBy`        | `name`            | Campo de ordenación |
+| `sortDirection` | `ASC`             | `ASC` o `DESC` |
+| `paged`         | `false` (consulta) / `true` (gestión) | `true` para paginar el resultado |
+| `page`          | `0`               | Página solicitada (0-based); solo con `paged=true` |
+| `size`          | `20`              | Tamaño de página (1–100); solo con `paged=true` |
+
+**Filtrado**
+- Búsqueda **por subcadena** ("contiene") y **sin distinguir mayúsculas/minúsculas**.
+- Se aplica sobre el texto **en el idioma del cliente** (con fallback a `en` si la entrada no tiene esa traducción): filtra exactamente lo que el cliente ve.
+- Si se envían `name` **y** `description` a la vez, se combinan con **OR**: devuelve las entradas cuyo nombre *o* descripción contengan el texto.
+- Sin filtros, devuelve todas las entradas del tipo.
+
+**Ordenación**
+
+| `sortBy`      | Ordena por | Depende del idioma |
+|---------------|------------|--------------------|
+| `name`        | Nombre (alfabético) | sí — el nombre en el idioma del cliente |
+| `description` | Descripción (alfabético) | sí |
+| `weight`      | Peso manual (numérico) | no |
+| campo extra   | p. ej. `website`, **solo** para el tipo que lo define (`brand`) | no |
+
+- Dirección ascendente (`ASC`) o descendente (`DESC`).
+- `sortDirection` con otro valor → **400**; `sortBy` no válido para ese tipo (p. ej. `website` en `category`) → **422**.
+- Filtrado y ordenación se ejecutan en base de datos.
+- **`weight` manda siempre primero**, descendente (peso alto destaca delante), sin importar `sortBy`/`sortDirection`: el orden real es *weight DESC, luego `sortBy` en la dirección pedida*. Si `sortBy=weight`, no hay un criterio distinto que añadir después, así que en ese caso sí se respeta `sortDirection` directamente sobre `weight` (p. ej. `sortBy=weight&sortDirection=ASC` → peso de menor a mayor). `id` desempata al final para que el orden sea estable entre páginas.
+
+**Paginación**
+- **En la API de consulta, por defecto (`paged=false`) no se pagina**: devuelve todas las entradas que cumplen el filtro en una lista JSON plana — lo habitual para poblar selectores y filtros. `page`/`size` se ignoran y no se envían cabeceras de página.
+- **En la API de gestión se pagina por defecto** (`paged=true`, `page=0`, `size=20`); `paged=false` devuelve la lista completa.
+- **Con `paged=true`** devuelve solo la página `page` de tamaño `size`, con el mismo filtro y orden. El cuerpo sigue siendo una lista JSON plana; los metadatos viajan en las cabeceras `X-Total-Count`, `X-Page-Number`, `X-Page-Size` y `X-Total-Pages`.
+- Una página más allá del final devuelve `[]` (con el total real en las cabeceras).
+- `page` negativo o `size` fuera de 1–100 → **400** (se validan aunque `paged=false`).
+- Las entradas con el mismo valor de `sortBy` se desempatan por `id`, así que el orden es estable entre páginas.
+
+**Ejemplos**
+
+```bash
+# Marcas cuyo nombre o descripción contiene "peri", en español, de mayor a menor peso
+curl "http://localhost:8080/api/catalogs/brand?name=peri&description=peri&sortBy=weight&sortDirection=DESC" \
+  -H "Accept-Language: es"
+
+# Categorías ordenadas alfabéticamente (Z→A) — pero siempre primero las de mayor weight
+curl "http://localhost:8080/api/catalogs/category?sortDirection=DESC"
+
+# Marcas ordenadas por web
+curl "http://localhost:8080/api/catalogs/brand?sortBy=website"
+
+# Segunda página de 10 marcas, por peso descendente (-i para ver las cabeceras X-*)
+curl -i "http://localhost:8080/api/catalogs/brand?paged=true&page=1&size=10&sortBy=weight&sortDirection=DESC"
+```
+
+### 4. Multi-idioma (i18n)
+
+- Idiomas soportados: **`en`** (por defecto) y **`es`**.
+- El cliente elige idioma con la cabecera **`Accept-Language`**. Afecta a:
+  - el `name`/`description` devuelto en lecturas y listados;
+  - el idioma sobre el que se filtra y ordena;
+  - el texto de los **mensajes de error**.
+- Si una entrada no tiene traducción en el idioma pedido, se usa la de `en`.
+- Cada entrada **debe** tener traducción en `en`; las demás son opcionales.
+- La API de gestión (`/admin/api/...`) devuelve todas las traducciones a la vez; `Accept-Language` solo afecta allí al filtro/orden por `name`/`description` y a los mensajes de error.
+
+### 5. Campos adicionales por tipo
+
+Cada tipo de catálogo puede tener campos propios además de los comunes (hoy: `website` en `brand`).
+
+- Viajan en el JSON como atributos normales de primer nivel (`"website": "..."`), tanto en la petición como en la respuesta.
+- Se pueden usar en `sortBy` (solo en su tipo).
+- En POST/PUT se sobrescriben por completo: omitir uno lo deja vacío.
+- Las claves que no correspondan a un campo del tipo se ignoran.
+
+### 6. Actualización parcial con JSON Patch (RFC 6902)
+
+`PATCH /admin/api/catalogs/{type}/{id}` con `Content-Type: application/json-patch+json`. Soporta las **seis operaciones** del estándar: `add`, `remove`, `replace`, `move`, `copy` y `test`.
+
+El documento sobre el que se aplica el patch es el mismo payload de POST/PUT, así que las traducciones se direccionan **por idioma**:
+
+| Objetivo | Operación |
+|----------|-----------|
+| Añadir/reemplazar la traducción española | `{"op":"add","path":"/translations/es","value":{"name":"...","description":"..."}}` |
+| Cambiar solo la descripción en inglés | `{"op":"replace","path":"/translations/en/description","value":"..."}` |
+| Quitar un idioma | `{"op":"remove","path":"/translations/es"}` |
+| Cambiar el peso | `{"op":"replace","path":"/weight","value":20}` |
+| Cambiar un campo extra | `{"op":"replace","path":"/website","value":"https://..."}` |
+| Condición previa (bloqueo optimista) | `{"op":"test","path":"/translations/en/name","value":"Logitech"}` |
+
+```bash
+curl -X PATCH http://localhost:8080/admin/api/catalogs/brand/1 \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[
+    { "op": "test",    "path": "/translations/en/name", "value": "Logitech" },
+    { "op": "replace", "path": "/weight", "value": 20 },
+    { "op": "add",     "path": "/translations/es", "value": { "name": "Logitech", "description": "Periféricos" } }
+  ]'
+```
+
+- El patch es **atómico**: si una operación falla, no se aplica ninguna.
+- `id`, `type`, `createdAt` y `updatedAt` no forman parte del documento y no se pueden modificar: `replace`/`remove` sobre ellos falla con 400, y un `add` se ignora.
+- El resultado se valida con las mismas reglas que POST/PUT (p. ej. quitar `/translations/en` → 400).
+
+| Status | Cuándo |
+|--------|--------|
+| 200 | Patch aplicado |
+| 400 | Documento inválido, operación no aplicable o resultado inválido |
+| 404 | Entrada no encontrada |
+| 409 | Una operación `test` falló, o el nombre resultante ya existe |
+| 415 | `Content-Type` distinto de `application/json-patch+json` |
+
+### 7. Validaciones y reglas de negocio
+
+| Regla | Respuesta |
+|-------|-----------|
+| `translations` presente y no vacío | 400 |
+| `translations` incluye `en` y solo idiomas soportados (`en`, `es`) | 400 |
+| `name` obligatorio, no vacío, máx. 80 caracteres | 400 |
+| `description` máx. 500 caracteres | 400 |
+| **Nombre único** por tipo e idioma, sin distinguir mayúsculas (dos marcas no pueden llamarse "Logitech" en `en`; una marca y una categoría sí) | 409 |
+| `sortBy` debe ser un campo ordenable del tipo | 422 |
+| `sortDirection` debe ser `ASC` o `DESC` | 400 |
+| No se puede eliminar una entrada referenciada por otra tabla | 409 |
+
+### 8. Errores
+
+Todas las respuestas de error tienen el mismo formato, con `message` localizado según `Accept-Language`:
+
+```json
+{
+  "timestamp": "2026-10-01T12:34:56Z",
+  "status": 409,
+  "error": "Conflict",
+  "message": "Marca: ya existe un registro con el nombre 'Logitech'",
+  "errors": ["..."]
+}
+```
+
+`errors` solo aparece con el detalle de los campos inválidos (validaciones).
+
+| Status | Significado |
+|--------|-------------|
+| 400 | Petición mal formada: JSON inválido, validación fallida, tipo de catálogo desconocido, parámetro inválido, JSON Patch inválido |
+| 404 | Entrada no encontrada |
+| 409 | Nombre duplicado, `test` de JSON Patch fallido, o entrada referenciada al eliminar |
+| 415 | `Content-Type` no soportado |
+| 422 | Consulta bien formada pero no válida (`sortBy` no ordenable) |
+| 500 | Error interno |
+
+### 9. Caché
+
+Las lecturas más frecuentes se sirven desde una caché en memoria: `GET /api/catalogs`, `GET .../{type}/{id}` y los listados **sin filtro de texto** (los de los selects). **Cada tipo de catálogo tiene sus propias cachés y su propia configuración.** Un alta, modificación o borrado por la API de gestión invalida solo las cachés de ese tipo, al confirmarse la transacción.
+
+La configuración no depende de la librería de caché (hoy Caffeine; cambiarla es añadir un adaptador — ver [ARCHITECTURE.md](docs/ARCHITECTURE.md#aislamiento-de-la-librería-de-caché)):
+
+```yaml
+app:
+  catalog:
+    cache:                   # por defecto para todos los tipos
+      provider: caffeine
+      enabled: true
+      maximum-size: 1000
+      expire-after-write: 10m
+      stats: true
+    types:
+      category:
+        cache:               # solo lo que cambia; el resto se hereda campo a campo
+          maximum-size: 500
+          expire-after-write: 1h
+          # enabled: false   → category no se cachea
+```
+
+- Campos: `enabled`, `maximum-size`, `expire-after-write`, `expire-after-access`, `stats` y `native-options` (vía de escape con opciones propias de la librería).
+- Con varias instancias, o si se modifica la base de datos directamente, un cambio puede tardar hasta la caducidad del tipo en verse en las demás instancias.
+- **Estado en Actuator**: `GET /actuator/catalogcaches` (o `/actuator/catalogcaches/{type}`) muestra el proveedor, la configuración efectiva de cada tipo y, por caché, tamaño y aciertos/fallos (`stats`, si `stats: true`). También `/actuator/caches` (lista estándar de Spring, en solo lectura) y `/actuator/metrics/cache.gets`.
+
+```json
+"brand": {
+  "settings": { "enabled": true, "maximumSize": 1000, "expireAfterWrite": "PT10M", "expireAfterAccess": null,
+                "stats": true, "nativeOptions": {} },
+  "caches": {
+    "catalogById:brand":  { "active": true, "size": 12,
+                            "stats": { "requests": 40, "hits": 28, "misses": 12, "hitRate": 0.7, "evictions": 0 } },
+    "catalogLists:brand": { "...": "..." }
+  }
+}
+```
+
+Detalles en [ARCHITECTURE.md](docs/ARCHITECTURE.md#caché-de-lecturas).
+
+### 10. Añadir un nuevo tipo de catálogo
+
+Sin escribir controller, servicio ni repositorio:
+
+1. Crear dos clases `@Entity` en `com.ej1.app.catalog` (entrada + traducción), copiando `BrandEntity`/`BrandTranslationEntity`.
+2. Añadir el tipo en `application.yml`:
+   ```yaml
+   app:
+     catalog:
+       types:
+         color:
+           entity-class: com.ej1.app.catalog.ColorEntity
+           translation-entity-class: com.ej1.app.catalog.ColorTranslationEntity
+           extra-fields: [hexCode]   # opcional
+           names:                    # opcional: nombre del tipo en los mensajes de error
+             en: Color
+             es: Color
+   ```
+3. **(Opcional) Caché propia** en la misma entrada: `cache: {maximum-size: ..., expire-after-write: ..., enabled: ...}` (ver [punto 9](#9-caché)); sin ella hereda `app.catalog.cache`.
+4. Nada más: los errores 404/409 usan las claves genéricas `error.catalog.notFound`/`error.catalog.duplicateName`, así que no hace falta definir mensajes por tipo.
+
+`/api/catalogs/color` y `/admin/api/catalogs/color` quedan disponibles con todas las operaciones anteriores.
+
+---
 
 ## Stack
 - Java 17
-- Spring Boot 4.1.0
-- Spring Web
-- Spring Data JPA + Hibernate
-- H2 (in-memory)
+- Spring Boot 4.1.0 (Web, Validation, Data JPA + Hibernate, Actuator)
+- PostgreSQL (ejecución) / H2 en memoria (solo tests)
 - Lombok
 - springdoc-openapi (Swagger UI)
+- Caffeine (caché en memoria, vía Spring Cache; la librería es intercambiable)
 
 ## Requirements
 - JDK 17+
 - Maven 3.9+
+- PostgreSQL
+
+## Base de datos
+Por defecto la app se conecta a `jdbc:postgresql://localhost:5432/postgres` (usuario `postgres`, contraseña `secret`; ver [application.yml](src/main/resources/application.yml)). Hibernate crea/actualiza las tablas automáticamente (`ddl-auto: update`).
+
+El repositorio incluye un **devcontainer** ([.devcontainer](.devcontainer)) con Java 17 + Maven y PostgreSQL 16 (puertos 8080 y 5432). Ese contenedor crea la base `ej1` con contraseña `postgres`, que no coincide con los valores por defecto de `application.yml`: ajusta `spring.datasource.*` (o usa variables de entorno como `SPRING_DATASOURCE_URL`).
 
 ## Run
 ```bash
 mvn spring-boot:run
 ```
-App starts on http://localhost:8080
+La app arranca en http://localhost:8080.
 
-## H2 Console
-http://localhost:8080/h2-console
-- JDBC URL: `jdbc:h2:mem:appdb`
-- User: `sa`
-- Password: (empty)
+Para cargar marcas y categorías de ejemplo (con la app arrancada):
+
+```bash
+./scripts/seed-catalogs.sh
+```
+
+En Windows: `.\scripts\seed-catalogs.ps1`.
 
 ## API Docs (Swagger)
-Documentación interactiva generada automáticamente con [springdoc-openapi](https://springdoc.org/) a partir de las anotaciones del controlador (`@Tag`, `@Operation`, `@ApiResponses`) y de los DTOs (`@Schema`).
+- Swagger UI: http://localhost:8080/swagger-ui.html — un desplegable arriba a la derecha permite cambiar entre las dos APIs.
+- OpenAPI spec (JSON), un documento por API:
+  - Consulta: http://localhost:8080/v3/api-docs/consulta
+  - Gestión: http://localhost:8080/v3/api-docs/gestion
 
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- OpenAPI spec (JSON): http://localhost:8080/v3/api-docs
+Cada operación documenta la cabecera `Accept-Language` con los idiomas soportados.
 
-Con la app arrancada (`mvn spring-boot:run`), abre la Swagger UI en el navegador para probar cada endpoint (`GET`/`POST`/`PUT`/`DELETE` de `/api/products`) sin necesidad de Postman ni curl.
+Monitorización (Actuator): `/actuator/health`, `/actuator/info`, `/actuator/metrics`, `/actuator/caches` y `/actuator/catalogcaches` (estado de las cachés por tipo, ver [punto 9](#9-caché)). `/actuator/caches` está en solo lectura (`management.endpoint.caches.access: read-only`): vaciar cachés con `DELETE` queda desactivado mientras Actuator no tenga seguridad delante.
 
-## Build
+## Build y tests
 ```bash
 mvn clean package
 ```
 
-## Test
 ```bash
 mvn test
 ```
 
-## Architecture
-Layered Architecture (Clean Architecture variant). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for:
-- 4 layers: `domain`, `application`, `infrastructure`, `interfaces`
-- Dependency rules between layers
-- Repository port/adapter pattern
-- How to add a new entity
+> **Aviso:** en `src/test/java/com/ej1/app/product/**` quedan tests de un módulo `product` cuyo código ya no existe en `src/main`. Mientras no se eliminen (o se restaure el módulo), la compilación de tests falla.
 
-## API
-Base path: `/api/products`
-
-| Method | Path                       | Action                                |
-|--------|----------------------------|---------------------------------------|
-| GET    | `/api/products`            | List all                              |
-| GET    | `/api/products/{id}`       | Get by id (404 if not found)          |
-| GET    | `/api/products/sku/{sku}`  | Get by sku (404 if not found)         |
-| POST   | `/api/products/query`      | Search (filters/sort/paging in body — RFC 10008 semantics) |
-| POST   | `/api/products`            | Create (`@Valid` body, 201 + Location)|
-| PUT    | `/api/products/{id}`       | Full update (`@Valid` body)           |
-| PATCH  | `/api/products/{id}`       | Partial update — JSON Patch, RFC 6902 |
-| DELETE | `/api/products/{id}`       | Delete (204)                          |
-
-Example payload (POST/PUT):
-```json
-{
-  "name": "Teclado mecánico",
-  "sku": "KB-001",
-  "price": 89.99,
-  "stock": 10,
-  "active": true,
-  "category": "Periféricos",
-  "brand": "Logitech"
-}
-```
-
-### QUERY — búsqueda de productos (RFC 10008)
-`POST /api/products/query` ejecuta una búsqueda filtrada/ordenada/paginada cuyos criterios viajan en el **cuerpo** de la petición en vez de en query params, siguiendo la semántica del método HTTP `QUERY` definido en [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html). Se expone sobre `POST` porque Spring Framework aún no soporta el verbo `QUERY` de forma nativa (llega en Spring Framework 7.1); ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para el detalle de esa decisión.
-
-Todos los filtros son opcionales y se combinan con AND. `category` y `brand` admiten varios
-valores: un producto coincide si contiene (parcial, sin distinguir mayúsculas) alguno de ellos (OR).
-Paginación **y orden** van agrupados bajo `page` — `number`/`size`/`sortBy`/`sortDirection`, todos
-opcionales (por defecto `0`/`20`/`id`/`ASC`):
-
-```bash
-curl -X POST http://localhost:8080/api/products/query \
-  -H "Content-Type: application/json" \
-  -d '{
-    "category": ["Periféricos", "Pantallas"],
-    "minPrice": 10,
-    "maxPrice": 100,
-    "active": true,
-    "page": { "number": 0, "size": 20, "sortBy": "price", "sortDirection": "DESC" }
-  }'
-```
-
-Respuesta paginada:
-```json
-{
-  "content": [ { "id": 1, "sku": "KB-001", "price": 89.99, "...": "..." } ],
-  "page": 0,
-  "size": 20,
-  "totalElements": 1,
-  "totalPages": 1
-}
-```
-
-Códigos de respuesta:
-
-| Status | Cuándo                                                                                     |
-|--------|----------------------------------------------------------------------------------------------|
-| 200    | Consulta ejecutada (incluso sin resultados — `content: []`)                                  |
-| 400    | Payload inválido: tipo de dato, `size` fuera de 1-100, `sortDirection` distinto de ASC/DESC…  |
-| 415    | `Content-Type` no soportado                                                                  |
-| 422    | Consulta válida pero inconsistente (p. ej. `minPrice > maxPrice`, o `sortBy` no es un campo ordenable de producto — la lista de campos válidos es una regla de negocio, no de formato) |
-
-`GET /api/products` acepta los mismos cuatro parámetros como query params planos (`page`, `size`,
-`sortBy`, `sortDirection`) con idéntica semántica y los mismos códigos de estado (400 para
-`sortDirection` inválido, 422 para `sortBy` desconocido).
-
-### PATCH — JSON Patch (RFC 6902)
-`PATCH /api/products/{id}` acepta un documento [JSON Patch (RFC 6902)](https://www.rfc-editor.org/rfc/rfc6902) con `Content-Type: application/json-patch+json`. Soporta las seis operaciones del estándar: `add`, `remove`, `replace`, `move`, `copy`, `test`.
-
-```bash
-curl -X PATCH http://localhost:8080/api/products/1 \
-  -H "Content-Type: application/json-patch+json" \
-  -d '[
-    { "op": "test", "path": "/sku", "value": "KB-001" },
-    { "op": "replace", "path": "/price", "value": 79.99 },
-    { "op": "add", "path": "/description", "value": "Oferta de lanzamiento" },
-    { "op": "remove", "path": "/tags" }
-  ]'
-```
-
-Solo son parcheables los campos editables del producto (los mismos del payload de POST/PUT); `id`, `createdAt` y `updatedAt` no existen en el documento, así que cualquier operación sobre ellos falla con 400. El resultado final se valida con las mismas reglas Bean Validation que POST/PUT.
-
-Códigos de respuesta:
-
-| Status | Cuándo                                                              |
-|--------|----------------------------------------------------------------------|
-| 200    | Patch aplicado, producto actualizado                                 |
-| 400    | Documento inválido, operación no aplicable, o resultado inválido     |
-| 404    | Producto no encontrado                                               |
-| 409    | Una operación `test` falló, o el SKU resultante ya existe            |
-
-La implementación de RFC 6902 (`shared/rest/patch/JsonPatch.java`) está escrita a mano sobre `Map`/`List` genéricos en vez de usar una librería de terceros: Spring Boot 4.1 corre sobre **Jackson 3** (`tools.jackson`), mientras que las librerías `json-patch` publicadas (java-json-tools, zjsonpatch...) están todas construidas contra `JsonNode` de Jackson 2 — añadirlas habría significado cargar un segundo stack de Jackson incompatible solo para esto. Vive en `shared` (no en `product`) porque no depende de nada del agregado `Product`: cualquier feature que exponga un endpoint `PATCH` puede reutilizarla, junto con `JsonPatchApplier` (orquesta conversión + patch + validación) y `JsonPatchExceptionHandler` (traduce sus excepciones a HTTP).
+## Arquitectura
+Arquitectura hexagonal (Ports & Adapters). Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para las capas, reglas de dependencia, el diseño del catálogo genérico, los mappers, el manejo de errores e i18n, y la implementación de JSON Patch.

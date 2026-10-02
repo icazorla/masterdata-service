@@ -11,6 +11,6 @@ import com.ej1.app.common.domain.exception.DuplicateResourceException;
  */
 public class DuplicateCatalogNameException extends DuplicateResourceException {
     public DuplicateCatalogNameException(CatalogType type, String name) {
-        super(type.label() + " with name '" + name + "' already exists", "error." + type.code() + ".duplicateName", name);
+        super(type.label() + " with name '" + name + "' already exists", "error.catalog.duplicateName", type, name);
     }
 }

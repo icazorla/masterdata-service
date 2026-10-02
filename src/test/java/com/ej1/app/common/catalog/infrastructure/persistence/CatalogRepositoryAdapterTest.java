@@ -3,7 +3,10 @@ package com.ej1.app.common.catalog.infrastructure.persistence;
 import com.ej1.app.common.catalog.domain.Catalog;
 import com.ej1.app.common.catalog.domain.CatalogTranslation;
 import com.ej1.app.common.catalog.domain.CatalogType;
+import com.ej1.app.common.catalog.domain.TestCatalogTypes;
 import com.ej1.app.common.catalog.domain.port.CatalogSearchCriteria;
+import com.ej1.app.common.domain.PageResult;
+import com.ej1.app.common.domain.Paging;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -14,6 +17,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,7 +46,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CatalogRepositoryAdapterTest {
 
     static Stream<CatalogType> catalogTypes() {
-        return Stream.of(CatalogType.BRAND, CatalogType.CATEGORY);
+        return Stream.of(TestCatalogTypes.BRAND, TestCatalogTypes.CATEGORY);
     }
 
     @Autowired
@@ -170,6 +174,74 @@ class CatalogRepositoryAdapterTest {
                 .containsExactly("Acme", "Samsung");
     }
 
+    @ParameterizedTest(name = "[{0}] findPage devuelve la página pedida, ordenada, con totales")
+    @MethodSource("catalogTypes")
+    void findPage_returnsRequestedSliceWithTotals(CatalogType type) {
+        for (String name : List.of("Echo", "Acme", "Delta", "Bravo", "Charlie")) {
+            adapter.save(sample(type, name, null));
+        }
+
+        PageResult<Catalog> first = adapter.findPage(type, "en", NO_FILTER, new Paging(0, 2, "name", "ASC"));
+        PageResult<Catalog> last = adapter.findPage(type, "en", NO_FILTER, new Paging(2, 2, "name", "ASC"));
+
+        assertThat(first.content()).extracting(c -> c.translation("en").get().name()).containsExactly("Acme", "Bravo");
+        assertThat(first.totalElements()).isEqualTo(5);
+        assertThat(first.totalPages()).isEqualTo(3);
+        assertThat(first.page()).isZero();
+        assertThat(first.size()).isEqualTo(2);
+        assertThat(last.content()).extracting(c -> c.translation("en").get().name()).containsExactly("Echo");
+        assertThat(last.totalElements()).isEqualTo(5);
+        assertThat(last.totalPages()).isEqualTo(3);
+    }
+
+    @ParameterizedTest(name = "[{0}] findPage aplica el filtro tanto al contenido como al total")
+    @MethodSource("catalogTypes")
+    void findPage_appliesFilterToContentAndTotal(CatalogType type) {
+        adapter.save(sample(type, "Logitech", null));
+        adapter.save(sample(type, "Logi Pro", null));
+        adapter.save(sample(type, "Samsung", null));
+
+        PageResult<Catalog> result = adapter.findPage(type, "en", new CatalogSearchCriteria("logi", null),
+                new Paging(0, 1, "name", "DESC"));
+
+        assertThat(result.content()).extracting(c -> c.translation("en").get().name()).containsExactly("Logitech");
+        assertThat(result.totalElements()).isEqualTo(2);
+        assertThat(result.totalPages()).isEqualTo(2);
+    }
+
+    @ParameterizedTest(name = "[{0}] findPage fuera de rango devuelve contenido vacío pero el total real")
+    @MethodSource("catalogTypes")
+    void findPage_outOfRangeReturnsEmptyContentWithTotal(CatalogType type) {
+        adapter.save(sample(type, "Acme", null));
+        adapter.save(sample(type, "Bravo", null));
+
+        PageResult<Catalog> result = adapter.findPage(type, "en", NO_FILTER, new Paging(5, 2, "name", "ASC"));
+        PageResult<Catalog> huge = adapter.findPage(type, "en", NO_FILTER, new Paging(Integer.MAX_VALUE, 100, "name", "ASC"));
+
+        assertThat(result.content()).isEmpty();
+        assertThat(result.totalElements()).isEqualTo(2);
+        assertThat(result.totalPages()).isEqualTo(1);
+        assertThat(huge.content()).isEmpty();
+        assertThat(huge.totalElements()).isEqualTo(2);
+    }
+
+    @ParameterizedTest(name = "[{0}] findPage desempata por id: entradas con el mismo peso no se repiten ni se pierden entre páginas")
+    @MethodSource("catalogTypes")
+    void findPage_tieBreaksById(CatalogType type) {
+        List<Long> ids = new ArrayList<>();
+        for (String name : List.of("A", "B", "C", "D")) {
+            ids.add(adapter.save(sampleWithWeight(type, name, 7)).getId());
+        }
+
+        List<Long> seen = new ArrayList<>();
+        for (int page = 0; page < 2; page++) {
+            adapter.findPage(type, "en", NO_FILTER, new Paging(page, 2, "weight", "ASC"))
+                    .content().forEach(c -> seen.add(c.getId()));
+        }
+
+        assertThat(seen).containsExactlyElementsOf(ids);
+    }
+
     @ParameterizedTest(name = "[{0}] save persiste el peso por defecto (0) cuando no se indica")
     @MethodSource("catalogTypes")
     void save_defaultsWeightToZero(CatalogType type) {
@@ -210,9 +282,52 @@ class CatalogRepositoryAdapterTest {
                 .containsExactly("Acme", "Logitech", "Samsung");
     }
 
+    @ParameterizedTest(name = "[{0}] findAll respeta ASC explícito cuando sortBy=weight (caso excepción, no fuerza DESC)")
+    @MethodSource("catalogTypes")
+    void findAll_sortsByWeightAscendingWhenExplicitlyRequested(CatalogType type) {
+        adapter.save(sampleWithWeight(type, "Samsung", 5));
+        adapter.save(sampleWithWeight(type, "Acme", 20));
+        adapter.save(sampleWithWeight(type, "Logitech", 10));
+
+        List<Catalog> result = adapter.findAll(type, "en", NO_FILTER, "weight", "ASC");
+
+        assertThat(result).extracting(c -> c.translation("en").get().name())
+                .containsExactly("Samsung", "Logitech", "Acme");
+    }
+
+    @ParameterizedTest(name = "[{0}] findAll ordena siempre por weight DESC primero, y solo dentro de cada peso aplica sortBy/sortDirection")
+    @MethodSource("catalogTypes")
+    void findAll_appliesWeightDescAlwaysBeforeSortBy(CatalogType type) {
+        adapter.save(sampleWithWeight(type, "Zeta", 10));
+        adapter.save(sampleWithWeight(type, "Alpha", 5));
+        adapter.save(sampleWithWeight(type, "Beta", 10));
+
+        List<Catalog> result = adapter.findAll(type, "en", NO_FILTER, "name", "ASC");
+
+        // weight=10 (Beta, Zeta, ordenadas por name ASC entre sí) siempre antes que weight=5 (Alpha),
+        // aunque "Alpha" sea alfabéticamente la primera — weight manda, sortBy solo desempata.
+        assertThat(result).extracting(c -> c.translation("en").get().name())
+                .containsExactly("Beta", "Zeta", "Alpha");
+    }
+
+    @ParameterizedTest(name = "[{0}] findAll aplica weight DESC primero también cuando sortDirection=DESC sobre el campo secundario")
+    @MethodSource("catalogTypes")
+    void findAll_appliesWeightDescAlwaysBeforeSortByDescending(CatalogType type) {
+        adapter.save(sampleWithWeight(type, "Zeta", 10));
+        adapter.save(sampleWithWeight(type, "Alpha", 5));
+        adapter.save(sampleWithWeight(type, "Beta", 10));
+
+        List<Catalog> result = adapter.findAll(type, "en", NO_FILTER, "name", "DESC");
+
+        // Mismo grupo de weight=10 primero (Zeta, Beta en orden name DESC), luego weight=5 (Alpha) —
+        // sortDirection=DESC solo invierte el desempate dentro de cada peso, no el orden de weight en sí.
+        assertThat(result).extracting(c -> c.translation("en").get().name())
+                .containsExactly("Zeta", "Beta", "Alpha");
+    }
+
     @Test
     void save_persistsAndReturnsBrandOnlyExtraField() {
-        Catalog brand = Catalog.builder().type(CatalogType.BRAND)
+        Catalog brand = Catalog.builder().type(TestCatalogTypes.BRAND)
                 .extraFields(Map.of("website", "https://www.logitech.com"))
                 .translations(List.of(new CatalogTranslation("en", "Logitech", null)))
                 .build();
@@ -220,13 +335,13 @@ class CatalogRepositoryAdapterTest {
         Catalog saved = adapter.save(brand);
 
         assertThat(saved.getExtraFields()).containsEntry("website", "https://www.logitech.com");
-        assertThat(adapter.findById(CatalogType.BRAND, saved.getId()).get().getExtraFields())
+        assertThat(adapter.findById(TestCatalogTypes.BRAND, saved.getId()).get().getExtraFields())
                 .containsEntry("website", "https://www.logitech.com");
     }
 
     @Test
     void save_updatesBrandOnlyExtraField() {
-        Catalog saved = adapter.save(Catalog.builder().type(CatalogType.BRAND)
+        Catalog saved = adapter.save(Catalog.builder().type(TestCatalogTypes.BRAND)
                 .extraFields(Map.of("website", "https://old.example.com"))
                 .translations(List.of(new CatalogTranslation("en", "Logitech", null)))
                 .build());
@@ -240,28 +355,35 @@ class CatalogRepositoryAdapterTest {
 
     @Test
     void findById_categoryHasNoExtraFields() {
-        Catalog saved = adapter.save(sample(CatalogType.CATEGORY, "Peripherals", null));
+        Catalog saved = adapter.save(sample(TestCatalogTypes.CATEGORY, "Peripherals", null));
 
-        Catalog result = adapter.findById(CatalogType.CATEGORY, saved.getId()).get();
+        Catalog result = adapter.findById(TestCatalogTypes.CATEGORY, saved.getId()).get();
 
         assertThat(result.getExtraFields()).isEmpty();
     }
 
     @Test
     void sortableExtraFields_returnsWebsiteOnlyForBrand() {
-        assertThat(adapter.sortableExtraFields(CatalogType.BRAND)).containsExactly("website");
-        assertThat(adapter.sortableExtraFields(CatalogType.CATEGORY)).isEmpty();
+        assertThat(adapter.sortableExtraFields(TestCatalogTypes.BRAND)).containsExactly("website");
+        assertThat(adapter.sortableExtraFields(TestCatalogTypes.CATEGORY)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("extraFieldTypes deduce el tipo de dato de la columna de la entidad: website es string en brand")
+    void extraFieldTypes_resolvesDataTypeFromEntity() {
+        assertThat(adapter.extraFieldTypes(TestCatalogTypes.BRAND)).containsExactly(Map.entry("website", "string"));
+        assertThat(adapter.extraFieldTypes(TestCatalogTypes.CATEGORY)).isEmpty();
     }
 
     @Test
     @DisplayName("findAll ordena brand por website (campo adicional del tipo, no traducido), sin coalesce ni join extra")
     void findAll_sortsBrandByExtraField() {
-        adapter.save(Catalog.builder().type(CatalogType.BRAND).extraFields(Map.of("website", "https://zeta.example.com"))
+        adapter.save(Catalog.builder().type(TestCatalogTypes.BRAND).extraFields(Map.of("website", "https://zeta.example.com"))
                 .translations(List.of(new CatalogTranslation("en", "Samsung", null))).build());
-        adapter.save(Catalog.builder().type(CatalogType.BRAND).extraFields(Map.of("website", "https://alpha.example.com"))
+        adapter.save(Catalog.builder().type(TestCatalogTypes.BRAND).extraFields(Map.of("website", "https://alpha.example.com"))
                 .translations(List.of(new CatalogTranslation("en", "Acme", null))).build());
 
-        List<Catalog> result = adapter.findAll(CatalogType.BRAND, "en", NO_FILTER, "website", "ASC");
+        List<Catalog> result = adapter.findAll(TestCatalogTypes.BRAND, "en", NO_FILTER, "website", "ASC");
 
         assertThat(result).extracting(c -> c.translation("en").get().name())
                 .containsExactly("Acme", "Samsung");
@@ -270,9 +392,9 @@ class CatalogRepositoryAdapterTest {
     @Test
     @DisplayName("findAll rechaza sortBy=website para category: no está en sus extraFields configurados")
     void findAll_rejectsExtraFieldNotConfiguredForType() {
-        adapter.save(sample(CatalogType.CATEGORY, "Peripherals", null));
+        adapter.save(sample(TestCatalogTypes.CATEGORY, "Peripherals", null));
 
-        assertThatThrownBy(() -> adapter.findAll(CatalogType.CATEGORY, "en", NO_FILTER, "website", "ASC"))
+        assertThatThrownBy(() -> adapter.findAll(TestCatalogTypes.CATEGORY, "en", NO_FILTER, "website", "ASC"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

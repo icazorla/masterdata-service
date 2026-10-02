@@ -2,8 +2,11 @@ package com.ej1.app.common.catalog.domain.port;
 
 import com.ej1.app.common.catalog.domain.Catalog;
 import com.ej1.app.common.catalog.domain.CatalogType;
+import com.ej1.app.common.domain.PageResult;
+import com.ej1.app.common.domain.Paging;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -37,11 +40,19 @@ public interface CatalogRepository {
     Set<String> sortableExtraFields(CatalogType type);
 
     /**
+     * Los mismos campos adicionales que {@link #sortableExtraFields}, en el orden de
+     * {@code extra-fields}, junto con su tipo de dato ({@code string}, {@code integer},
+     * {@code number}, {@code boolean}, {@code date}, {@code date-time}) — deducido de la
+     * columna real de la entidad, conocimiento de persistencia igual que los nombres.
+     */
+    Map<String, String> extraFieldTypes(CatalogType type);
+
+    /**
      * Devuelve las entradas de este tipo que cumplen {@code criteria}, ordenadas por
      * {@code sortBy} ({@code "name"}/{@code "description"}) en la dirección indicada
-     * ({@code "ASC"}/{@code "DESC"}, sin distinguir mayúsculas). Datos maestros — sin
-     * paginación: se espera que la tabla se mantenga pequeña (se usa para poblar
-     * filtros/selects).
+     * ({@code "ASC"}/{@code "DESC"}, sin distinguir mayúsculas). Sin paginación: devuelve
+     * todas las coincidencias — pensado para poblar filtros/selects; ver {@link #findPage}
+     * para la variante paginada.
      *
      * <p>El filtro y el orden se evalúan en base de datos sobre la traducción resuelta
      * para {@code locale} (código de idioma, p. ej. {@code "es"}), recurriendo a la
@@ -51,6 +62,13 @@ public interface CatalogRepository {
      * siempre coincide con lo que el cliente ve en la respuesta.
      */
     List<Catalog> findAll(CatalogType type, String locale, CatalogSearchCriteria criteria, String sortBy, String sortDirection);
+
+    /**
+     * Variante paginada de {@link #findAll}: mismo filtro, mismo orden y mismo fallback de
+     * locale, pero devuelve solo la página {@code paging.page()} (0-based) de tamaño
+     * {@code paging.size()}, junto con el total de coincidencias.
+     */
+    PageResult<Catalog> findPage(CatalogType type, String locale, CatalogSearchCriteria criteria, Paging paging);
 
     /** {@code catalog.getType()} determina en qué tabla se persiste esto — no hace falta un parámetro {@code type} aparte. */
     Catalog save(Catalog catalog);

@@ -35,15 +35,51 @@ app:
   # to that type only (e.g. brand.website) — must exist as a real @Column with a JavaBean
   # getter/setter on that type's entity class; read/written generically via
   # CatalogExtraFieldsAccessor and exposed in the REST payload under their own name.
+  # names: translated type name per language (BCP 47 tag; use "[es-MX]" for region tags),
+  # used as {0} in error.catalog.* messages (see CatalogTypeNamesMessageSource). Optional:
+  # a missing language falls back to the capitalized code (e.g. "Brand").
+  # cache: read cache of that type (see CatalogCacheConfig) — every type has its own caches
+  # (catalogById:<type>, catalogLists:<type>). Library-neutral settings, all optional: whatever
+  # a type omits is inherited field by field from app.catalog.cache below.
+  #   enabled: false            never cache that type
+  #   maximum-size              max entries (omit = unbounded)
+  #   expire-after-write        TTL, e.g. 10m — also caps staleness when the DB is changed outside
+  #                             this instance (another replica, a SQL script...)
+  #   expire-after-access       idle expiry
+  #   stats                     record hits/misses/evictions -> /actuator/catalogcaches, /actuator/metrics/cache.*
+  #   native-options            escape hatch, library-specific (Caffeine: CaffeineSpec keys as-is,
+  #                             e.g. "initialCapacity: 64"); merged with the global ones (type wins).
   catalog:
+    # Defaults for every type + the cache library + the settings of the global catalogTypes cache.
+    # enabled: false here disables every catalog cache unless a type sets enabled: true.
+    cache:
+      provider: caffeine        # CatalogCacheProvider id (see infrastructure.cache.spi)
+      enabled: true
+      maximum-size: 1000
+      expire-after-write: 10m
+      stats: true
     types:
       brand:
         entity-class: com.ej1.app.catalog.BrandEntity
         translation-entity-class: com.ej1.app.catalog.BrandTranslationEntity
         extra-fields: [website]
+        names:
+          en: Brand
+          es: Marca
+        cache:
+          maximum-size: 1000
+          expire-after-write: 10m
+          # enabled: false
       category:
         entity-class: com.ej1.app.catalog.CategoryEntity
         translation-entity-class: com.ej1.app.catalog.CategoryTranslationEntity
+        names:
+          en: Category
+          es: Categoría
+        cache:
+          maximum-size: 500
+          expire-after-write: 1h
+          # enabled: false
 
 
 # OpenAPI / Swagger UI
@@ -58,10 +94,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        # caches: standard cache list; catalogcaches: per catalog type settings, size and
+        # hit/miss stats (CatalogCachesEndpoint)
+        include: health,info,metrics,caches,catalogcaches
   endpoint:
     health:
       show-details: when-authorized
+    caches:
+      # read-only: DELETE /actuator/caches[/{name}] (clear caches) stays disabled while the app
+      # has no security in front of /actuator. Set to unrestricted to allow it.
+      access: read-only
   info:
     build:
       enabled: true

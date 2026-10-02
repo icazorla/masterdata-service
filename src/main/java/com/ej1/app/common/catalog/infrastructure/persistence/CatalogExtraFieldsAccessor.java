@@ -3,6 +3,9 @@ package com.ej1.app.common.catalog.infrastructure.persistence;
 import java.beans.IntrospectionException;
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.InvocationTargetException;
+import java.math.BigInteger;
+import java.time.LocalDate;
+import java.time.temporal.Temporal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,17 +60,55 @@ final class CatalogExtraFieldsAccessor {
         }
     }
 
+    /**
+     * El tipo de dato de cada campo en {@code fieldNames} (en ese orden), deducido del tipo Java
+     * de la propiedad en {@code entityClass} y expresado como tipo JSON-friendly:
+     * {@code string}, {@code integer}, {@code number}, {@code boolean}, {@code date},
+     * {@code date-time} — o {@code string} para cualquier otro (enums, UUID, ...).
+     */
+    static Map<String, String> dataTypes(Class<?> entityClass, List<String> fieldNames) {
+        Map<String, String> types = new LinkedHashMap<>();
+        for (String fieldName : fieldNames) {
+            types.put(fieldName, dataTypeOf(descriptorFor(entityClass, fieldName).getPropertyType()));
+        }
+        return types;
+    }
+
+    private static String dataTypeOf(Class<?> javaType) {
+        if (javaType == Integer.class || javaType == int.class || javaType == Long.class || javaType == long.class
+                || javaType == Short.class || javaType == short.class || javaType == BigInteger.class) {
+            return "integer";
+        }
+        if (Number.class.isAssignableFrom(javaType) || javaType == double.class || javaType == float.class) {
+            return "number";
+        }
+        if (javaType == Boolean.class || javaType == boolean.class) {
+            return "boolean";
+        }
+        if (javaType == LocalDate.class) {
+            return "date";
+        }
+        if (Temporal.class.isAssignableFrom(javaType)) {
+            return "date-time";
+        }
+        return "string";
+    }
+
     private static PropertyDescriptor descriptorFor(Object entity, String fieldName) {
+        return descriptorFor(entity.getClass(), fieldName);
+    }
+
+    private static PropertyDescriptor descriptorFor(Class<?> entityClass, String fieldName) {
         try {
-            PropertyDescriptor descriptor = new PropertyDescriptor(fieldName, entity.getClass());
+            PropertyDescriptor descriptor = new PropertyDescriptor(fieldName, entityClass);
             if (descriptor.getReadMethod() == null || descriptor.getWriteMethod() == null) {
                 throw new IllegalStateException(
-                        "Extra field '" + fieldName + "' has no getter/setter pair on " + entity.getClass().getSimpleName());
+                        "Extra field '" + fieldName + "' has no getter/setter pair on " + entityClass.getSimpleName());
             }
             return descriptor;
         } catch (IntrospectionException e) {
             throw new IllegalStateException(
-                    "Extra field '" + fieldName + "' is not a JavaBean property of " + entity.getClass().getSimpleName(), e);
+                    "Extra field '" + fieldName + "' is not a JavaBean property of " + entityClass.getSimpleName(), e);
         }
     }
 }

@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-    Seeds example brands and categories through the unified /api/catalogs/{type} API.
+    Seeds example brands and categories through the management API (/admin/api/catalogs/{type}),
+    then lists them through the query API (/api/catalogs/{type}).
 
 .PARAMETER BaseUrl
     Base URL of the running app. Defaults to http://localhost:8080.
@@ -20,9 +21,9 @@ function Add-Catalog {
     )
 
     try {
-        $created = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/catalogs/$Type" `
+        $created = Invoke-RestMethod -Method Post -Uri "$BaseUrl/admin/api/catalogs/$Type" `
             -ContentType 'application/json; charset=utf-8' -Body $Payload
-        Write-Host "  [ok]      $Type '$($created.name)' created (201)"
+        Write-Host "  [ok]      $Type '$($created.translations.en.name)' created (201)"
     }
     catch {
         $statusCode = $_.Exception.Response.StatusCode.value__
@@ -46,7 +47,7 @@ function Add-Catalog {
     }
 }
 
-Write-Host "Seeding brands into $BaseUrl/api/catalogs/brand ..."
+Write-Host "Seeding brands into $BaseUrl/admin/api/catalogs/brand ..."
 
 Add-Catalog -Type 'brand' -Payload @'
 {
@@ -76,7 +77,7 @@ Add-Catalog -Type 'brand' -Payload @'
 '@
 
 Write-Host ""
-Write-Host "Seeding categories into $BaseUrl/api/catalogs/category ..."
+Write-Host "Seeding categories into $BaseUrl/admin/api/catalogs/category ..."
 
 Add-Catalog -Type 'category' -Payload @'
 {

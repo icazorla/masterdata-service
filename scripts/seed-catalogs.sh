@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Seeds example brands and categories through the unified /api/catalogs/{type} API.
+# Seeds example brands and categories through the management API (/admin/api/catalogs/{type}),
+# then lists them through the query API (/api/catalogs/{type}).
 #
 # Usage:
 #   ./scripts/seed-catalogs.sh [base_url]
@@ -14,7 +15,7 @@ post_catalog() {
     local payload="$2"
 
     local response
-    response=$(curl -s -w '\n%{http_code}' -X POST "${BASE_URL}/api/catalogs/${type}" \
+    response=$(curl -s -w '\n%{http_code}' -X POST "${BASE_URL}/admin/api/catalogs/${type}" \
         -H "Content-Type: application/json" \
         -d "${payload}")
 
@@ -32,7 +33,7 @@ post_catalog() {
     fi
 }
 
-echo "Seeding brands into ${BASE_URL}/api/catalogs/brand ..."
+echo "Seeding brands into ${BASE_URL}/admin/api/catalogs/brand ..."
 
 post_catalog brand '{
   "translations": {
@@ -56,7 +57,7 @@ post_catalog brand '{
 }'
 
 echo
-echo "Seeding categories into ${BASE_URL}/api/catalogs/category ..."
+echo "Seeding categories into ${BASE_URL}/admin/api/catalogs/category ..."
 
 post_catalog category '{
   "translations": {

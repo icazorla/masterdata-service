@@ -50,6 +50,13 @@ public abstract class CatalogBaseEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @Column
+    /**
+     * {@code nullable = false} + {@code columnDefinition}: la columna en sí no admite
+     * {@code NULL} y tiene {@code DEFAULT 0} en base de datos — no solo el inicializador
+     * de campo Java de arriba, que únicamente cubre la ruta {@code newInstance} + setters
+     * de {@link CatalogRepositoryAdapter}. Un {@code INSERT} que no fije {@code weight}
+     * por cualquier otro camino recibe igualmente {@code 0}, nunca {@code NULL}.
+     */
+    @Column(nullable = false, columnDefinition = "integer default 0")
     private Integer weight = 0;
 }

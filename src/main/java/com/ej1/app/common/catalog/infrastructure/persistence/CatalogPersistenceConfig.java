@@ -16,7 +16,9 @@ import java.util.Map;
  * ({@code app.catalog.types.*} en {@code application.yml}) en lugar de un mapa Java
  * de literales {@code Class} escrito a mano. Añadir un nuevo tipo de catálogo pasa a
  * ser puramente un cambio de configuración + dos nuevas clases {@code @Entity} — sin
- * ninguna clase Java aquí que tocar.
+ * ninguna clase Java aquí que tocar. También vuelca esas mismas claves en
+ * {@link CatalogType#configure}, de modo que {@link CatalogType#of}/
+ * {@link CatalogType#values()} reflejan exactamente {@code app.catalog.types}.
  *
  * <p>La contrapartida: {@code entity-class}/{@code translation-entity-class} son
  * simples cadenas resueltas mediante {@link Class#forName}, por lo que un error
@@ -39,6 +41,7 @@ public class CatalogPersistenceConfig {
 
     @Bean
     public Map<CatalogType, CatalogTypeDescriptor<?, ?>> catalogTypeDescriptors() {
+        CatalogType.configure(properties.getTypes().keySet());
         Map<CatalogType, CatalogTypeDescriptor<?, ?>> descriptors = new LinkedHashMap<>();
         properties.getTypes().forEach((key, entry) -> {
             CatalogType type = CatalogType.of(key);

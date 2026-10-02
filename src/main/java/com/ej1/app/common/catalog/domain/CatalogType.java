@@ -1,33 +1,40 @@
 package com.ej1.app.common.catalog.domain;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import org.springframework.context.MessageSourceResolvable;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Identifica a qué catálogo de datos maestros de name+description pertenece
  * una instancia de {@link Catalog}. Deliberadamente NO es un {@code enum} de
  * Java: el conjunto de tipos de catálogo que existen no es una constante en
- * tiempo de compilación — {@code app.catalog.types} de {@code application.yml}
- * es la lista maestra (ver {@code CatalogPersistenceConfig}/
- * {@code CatalogProperties}), así que añadir un catálogo significa añadir una
- * entrada de configuración más sus dos clases {@code @Entity}, no un nuevo
- * valor aquí.
+ * tiempo de compilación — se toma de {@code app.catalog.types} de
+ * {@code application.yml}, que {@code CatalogPersistenceConfig} vuelca aquí
+ * mediante {@link #configure(Collection)} al arrancar. Añadir un catálogo
+ * significa añadir una entrada de configuración más sus dos clases
+ * {@code @Entity}, no tocar esta clase.
  *
- * <p>{@link #BRAND}/{@link #CATEGORY} de abajo son constantes de conveniencia
- * para los dos tipos de los que {@code com.ej1.app.product.domain.Product}
- * depende estructuralmente (sus columnas {@code brandId}/{@code categoryId})
- * — no tienen ningún estatus especial, son simplemente valores de
- * {@link CatalogType} ya construidos, iguales a {@code CatalogType.of("brand")}/
- * {@code CatalogType.of("category")}. Si un {@link CatalogType} dado existe
- * realmente lo decide únicamente si es una clave en el registro de
- * descriptores configurado, no nada de esta clase.
+ * <p>Se comporta como un {@code enum} cuyos valores vienen de configuración:
+ * {@link #of(String)} solo devuelve tipos configurados (y lanza
+ * {@link IllegalArgumentException} para cualquier otro) y {@link #values()}
+ * lista todos los configurados, en el orden del {@code application.yml}.
+ *
+ * <p>Implementa {@link MessageSourceResolvable} para que, al pasarse como argumento
+ * de un mensaje i18n (p. ej. {@code error.catalog.notFound={0} not found: id={1}}),
+ * el {@code MessageSource} lo sustituya por su nombre traducido: la clave
+ * {@code catalog.type.<code>}, que sale de {@code app.catalog.types.<code>.names}
+ * de {@code application.yml} (ver {@code CatalogTypeNamesMessageSource}) o, si no
+ * existe, {@link #label()}. Así un tipo nuevo no necesita ningún mensaje propio.
  */
-public final class CatalogType {
+public final class CatalogType implements MessageSourceResolvable {
 
-    public static final CatalogType BRAND = new CatalogType("brand");
-    public static final CatalogType CATEGORY = new CatalogType("category");
+    private static volatile Map<String, CatalogType> configured = Map.of();
 
     private final String code;
 
@@ -35,16 +42,43 @@ public final class CatalogType {
         this.code = code;
     }
 
-    /** Normaliza {@code code} (trim + minúsculas) en un {@link CatalogType}. Si realmente es un tipo configurado le corresponde comprobarlo al llamante contra el registro — esto solo construye el identificador. */
+    /**
+     * Sustituye el conjunto de tipos configurados por {@code codes} (las claves de
+     * {@code app.catalog.types}). Lo invoca {@code CatalogPersistenceConfig} al
+     * arrancar; no está pensado para llamarse desde código de negocio.
+     */
+    public static void configure(Collection<String> codes) {
+        Map<String, CatalogType> types = new LinkedHashMap<>();
+        for (String code : codes) {
+            String normalized = normalize(code);
+            types.put(normalized, new CatalogType(normalized));
+        }
+        configured = Collections.unmodifiableMap(types);
+    }
+
+    /** Devuelve el {@link CatalogType} configurado cuyo código es {@code code} (trim + minúsculas). Lanza {@link IllegalArgumentException} si no está en {@code app.catalog.types}. */
     public static CatalogType of(String code) {
         Objects.requireNonNull(code, "code");
-        return new CatalogType(code.trim().toLowerCase(Locale.ROOT));
+        CatalogType type = configured.get(normalize(code));
+        if (type == null) {
+            throw new IllegalArgumentException("Unknown catalog type: " + code);
+        }
+        return type;
+    }
+
+    /** Todos los tipos configurados en {@code app.catalog.types}, en el orden de {@code application.yml}. */
+    public static Collection<CatalogType> values() {
+        return configured.values();
+    }
+
+    private static String normalize(String code) {
+        return code.trim().toLowerCase(Locale.ROOT);
     }
 
     /**
      * Forma en minúsculas usada como segmento de la ruta REST (p. ej.
      * {@code /api/catalogs/brand}), como segmento de la clave de mensaje i18n
-     * (p. ej. {@code error.brand.notFound}), y — mediante {@link JsonValue} —
+     * del nombre traducido (p. ej. {@code catalog.type.brand}), y — mediante {@link JsonValue} —
      * como representación JSON de este tipo (un string plano, p. ej.
      * {@code "brand"}, en lugar de {@code {}}: sin un {@code enum} al que
      * Jackson pueda recurrir y sin un {@code getCode()} al estilo JavaBean, de
@@ -58,6 +92,18 @@ public final class CatalogType {
     /** {@link #code()}, capitalizado — usado en mensajes de excepción orientados al desarrollador (en inglés, de log/fallback), p. ej. {@code "Brand not found: id=1"}. */
     public String label() {
         return Character.toUpperCase(code.charAt(0)) + code.substring(1);
+    }
+
+    /** Clave i18n opcional con el nombre traducido del tipo, p. ej. {@code catalog.type.brand}. */
+    @Override
+    public String[] getCodes() {
+        return new String[]{"catalog.type." + code};
+    }
+
+    /** Nombre usado cuando no existe {@code catalog.type.<code>} en el bundle: {@link #label()}. */
+    @Override
+    public String getDefaultMessage() {
+        return label();
     }
 
     @Override

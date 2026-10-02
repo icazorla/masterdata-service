@@ -3,13 +3,17 @@ package com.ej1.app.common.catalog.interfaces.rest.mapper;
 import com.ej1.app.common.catalog.domain.Catalog;
 import com.ej1.app.common.catalog.domain.CatalogTranslation;
 import com.ej1.app.common.catalog.domain.CatalogType;
+import com.ej1.app.common.catalog.domain.CatalogTypeDefinition;
 import com.ej1.app.common.catalog.domain.port.CatalogTranslationCommand;
 import com.ej1.app.common.catalog.domain.port.CreateCatalogCommand;
 import com.ej1.app.common.catalog.domain.port.UpdateCatalogCommand;
+import com.ej1.app.common.catalog.interfaces.rest.dto.CatalogAdminResponse;
+import com.ej1.app.common.catalog.interfaces.rest.dto.CatalogFieldResponse;
 import com.ej1.app.common.catalog.interfaces.rest.dto.CatalogRequest;
 import com.ej1.app.common.catalog.interfaces.rest.dto.CatalogResponse;
 import com.ej1.app.common.catalog.interfaces.rest.dto.CatalogTranslationRequest;
 import com.ej1.app.common.catalog.interfaces.rest.dto.CatalogTranslationResponse;
+import com.ej1.app.common.catalog.interfaces.rest.dto.CatalogTypeResponse;
 
 import java.util.HashMap;
 import java.util.List;
@@ -27,10 +31,11 @@ import java.util.stream.Collectors;
  * {@code description} que se muestra a los clientes habituales a partir del
  * conjunto completo de traducciones de la entrada, eligiendo el idioma del
  * {@code Accept-Language} del solicitante y recurriendo a {@link #DEFAULT_LOCALE}
- * cuando ese idioma no tiene traducción. {@code toTranslationResponses} expone
- * todos los idiomas a la vez (indexados por idioma, igual que
- * {@link CatalogRequest#getTranslations()}), para el endpoint de uso
- * administrativo {@code GET /api/catalogs/{type}/{id}/translations}.
+ * cuando ese idioma no tiene traducción — es la respuesta de la API de consulta.
+ * {@code toAdminResponse}/{@code toAdminResponseList} exponen en cambio todos los
+ * idiomas a la vez (indexados por idioma, igual que
+ * {@link CatalogRequest#getTranslations()}), para la API de gestión
+ * ({@code /admin/api/catalogs/{type}}).
  *
  * <p>Todos los métodos aquí son métodos default: las conversiones
  * {@code Map<locale, ...>} <-> {@code List<...Command>} no son derivables solo
@@ -54,10 +59,29 @@ public interface CatalogRestMapper {
         return catalogs.stream().map(c -> toResponse(c, locale)).toList();
     }
 
+    default CatalogAdminResponse toAdminResponse(Catalog catalog) {
+        return new CatalogAdminResponse(catalog.getId(), catalog.getType(), catalog.getWeight(),
+                toTranslationResponses(catalog.getTranslations()), catalog.getExtraFields(),
+                catalog.getCreatedAt(), catalog.getUpdatedAt());
+    }
+
+    default List<CatalogAdminResponse> toAdminResponseList(List<Catalog> catalogs) {
+        return catalogs.stream().map(this::toAdminResponse).toList();
+    }
+
     default Map<String, CatalogTranslationResponse> toTranslationResponses(List<CatalogTranslation> translations) {
         return translations.stream().collect(Collectors.toMap(
                 CatalogTranslation::locale,
                 t -> new CatalogTranslationResponse(t.name(), t.description())));
+    }
+
+    /** {@code name} es el nombre ya traducido del tipo — resolverlo necesita el {@code MessageSource}, que este mapeador no tiene. */
+    default CatalogTypeResponse toTypeResponse(CatalogTypeDefinition definition, String name) {
+        List<CatalogFieldResponse> fields = definition.fields().stream()
+                .map(f -> new CatalogFieldResponse(f.name(), f.dataType(), f.required(), f.readOnly(),
+                        f.translatable(), f.sortable(), f.extra()))
+                .toList();
+        return new CatalogTypeResponse(definition.type(), name, fields);
     }
 
     default CreateCatalogCommand toCreateCommand(CatalogType type, CatalogRequest request) {

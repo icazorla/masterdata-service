@@ -10,14 +10,17 @@ import org.springframework.context.MessageSource;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -147,6 +150,29 @@ public class ApiExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex, Locale locale) {
         log.warn(ex.getMessage());
         return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, messageSource.getMessage("error.unsupportedMediaType", null, locale), List.of());
+    }
+
+    /**
+     * Método HTTP no soportado en una ruta que sí existe — p. ej. un {@code POST} a la API de
+     * consulta ({@code /api/catalogs/{type}}, solo lectura) en vez de a la de gestión
+     * ({@code /admin/api/catalogs/{type}}). 405 con la cabecera {@code Allow}; ver
+     * {@link #handleNotReadable} para el porqué del manejador explícito.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex, Locale locale) {
+        log.warn(ex.getMessage());
+        ResponseEntity<Map<String, Object>> response = build(HttpStatus.METHOD_NOT_ALLOWED,
+                messageSource.getMessage("error.methodNotAllowed", new Object[]{ex.getMethod()}, locale), List.of());
+        return ex.getSupportedHttpMethods() == null
+                ? response
+                : ResponseEntity.status(response.getStatusCode()).allow(ex.getSupportedHttpMethods().toArray(HttpMethod[]::new)).body(response.getBody());
+    }
+
+    /** Ninguna ruta coincide (p. ej. el antiguo {@code /api/catalogs/{type}/{id}/translations}): 404, no 500. */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex, Locale locale) {
+        log.warn(ex.getMessage());
+        return build(HttpStatus.NOT_FOUND, messageSource.getMessage("error.resourceNotFound", null, locale), List.of());
     }
 
     @ExceptionHandler(Exception.class)

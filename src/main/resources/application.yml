@@ -1,6 +1,6 @@
 spring:
   application:
-    name: app
+    name: masterdata-service
   web:
     locale: en
     locale-resolver: accept-header
@@ -17,6 +17,10 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
+      # Derives each catalog's translations table/FK (brand_translations/brand_id, ...)
+      # from its entity class name, so no catalog entity declares @CollectionTable.
+      naming:
+        implicit-strategy: io.masterdata.common.catalog.infrastructure.persistence.CatalogImplicitNamingStrategy
     properties:
       hibernate:
         default_schema: public
@@ -24,63 +28,6 @@ spring:
 
 server:
   port: 8080
-
-# Locales documented as valid Accept-Language values in Swagger UI (see OpenApiConfig).
-app:
-  i18n:
-    supported-locales: en,es
-  # Which @Entity pair backs each CatalogType (see CatalogPersistenceConfig/CatalogProperties).
-  # Adding a new catalog type: create its two @Entity classes and add one more entry here —
-  # no new repository/adapter/mapper class needed. extra-fields: names of fields specific
-  # to that type only (e.g. brand.website) — must exist as a real @Column with a JavaBean
-  # getter/setter on that type's entity class; read/written generically via
-  # CatalogExtraFieldsAccessor and exposed in the REST payload under their own name.
-  # names: translated type name per language (BCP 47 tag; use "[es-MX]" for region tags),
-  # used as {0} in error.catalog.* messages (see CatalogTypeNamesMessageSource). Optional:
-  # a missing language falls back to the capitalized code (e.g. "Brand").
-  # cache: read cache of that type (see CatalogCacheConfig) — every type has its own caches
-  # (catalogById:<type>, catalogLists:<type>). Library-neutral settings, all optional: whatever
-  # a type omits is inherited field by field from app.catalog.cache below.
-  #   enabled: false            never cache that type
-  #   maximum-size              max entries (omit = unbounded)
-  #   expire-after-write        TTL, e.g. 10m — also caps staleness when the DB is changed outside
-  #                             this instance (another replica, a SQL script...)
-  #   expire-after-access       idle expiry
-  #   stats                     record hits/misses/evictions -> /actuator/catalogcaches, /actuator/metrics/cache.*
-  #   native-options            escape hatch, library-specific (Caffeine: CaffeineSpec keys as-is,
-  #                             e.g. "initialCapacity: 64"); merged with the global ones (type wins).
-  catalog:
-    # Defaults for every type + the cache library + the settings of the global catalogTypes cache.
-    # enabled: false here disables every catalog cache unless a type sets enabled: true.
-    cache:
-      provider: caffeine        # CatalogCacheProvider id (see infrastructure.cache.spi)
-      enabled: true
-      maximum-size: 1000
-      expire-after-write: 10m
-      stats: true
-    types:
-      brand:
-        entity-class: com.ej1.app.catalog.BrandEntity
-        translation-entity-class: com.ej1.app.catalog.BrandTranslationEntity
-        extra-fields: [website]
-        names:
-          en: Brand
-          es: Marca
-        cache:
-          maximum-size: 1000
-          expire-after-write: 10m
-          # enabled: false
-      category:
-        entity-class: com.ej1.app.catalog.CategoryEntity
-        translation-entity-class: com.ej1.app.catalog.CategoryTranslationEntity
-        names:
-          en: Category
-          es: Categoría
-        cache:
-          maximum-size: 500
-          expire-after-write: 1h
-          # enabled: false
-
 
 # OpenAPI / Swagger UI
 springdoc:
@@ -99,13 +46,59 @@ management:
         include: health,info,metrics,caches,catalogcaches
   endpoint:
     health:
+      # details only for authenticated users with role ADMIN (see SecurityConfig)
       show-details: when-authorized
+      roles: ADMIN
     caches:
-      # read-only: DELETE /actuator/caches[/{name}] (clear caches) stays disabled while the app
-      # has no security in front of /actuator. Set to unrestricted to allow it.
-      access: read-only
+      # unrestricted: allows DELETE /actuator/caches[/{name}] (clear caches) — /actuator/** other
+      # than health/info requires role ADMIN (see SecurityConfig).
+      access: unrestricted
   info:
     build:
       enabled: true
     env:
       enabled: true
+
+
+
+#################################################################
+#################################################################
+#################################################################
+
+app:
+  # Locales documented as valid Accept-Language values in Swagger UI (see OpenApiConfig).
+  i18n:
+    supported-locales: en,es
+  catalog:
+    cache:
+      provider: caffeine
+      enabled: false
+      maximum-size: 1000
+      expire-after-write: 10m
+      expire-after-access: 10m
+      stats: true
+    types:
+      # Comunidades autónomas y provincias de España
+      region:
+        entity-class: io.masterdata.catalog.RegionEntity
+        names:
+          en: Autonomous community
+          es: Comunidad autónoma
+        cache:
+          maximum-size: 100
+          expire-after-write: 12h
+      province:
+        entity-class: io.masterdata.catalog.ProvinceEntity
+        names:
+          en: Province
+          es: Provincia
+        cache:
+          maximum-size: 200
+          expire-after-write: 12h
+  # Configuración de seguridad básica para el acceso a los endpoints de la API y Swagger UI.
+  # Se utiliza un usuario "admin" con contraseña encriptada.
+  security:
+    users:
+      admin:
+        password: "{bcrypt}$2a$10$dqxOOacf9UMOWdUcb.ROpeZgqmqM8kIGp7Yavrn.Wn6c4GqkPp45m"
+        roles: [ADMIN]

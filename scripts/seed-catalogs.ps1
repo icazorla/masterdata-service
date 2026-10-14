@@ -1,18 +1,33 @@
 <#
 .SYNOPSIS
-    Seeds example brands and categories through the management API (/admin/api/catalogs/{type}),
+    Seeds example brands, categories, Spanish autonomous communities (region) and provinces through the management API (/admin/api/catalogs/{type}),
     then lists them through the query API (/api/catalogs/{type}).
 
 .PARAMETER BaseUrl
     Base URL of the running app. Defaults to http://localhost:8080.
 
+.PARAMETER User
+    User with role ADMIN for the management API (HTTP Basic). Defaults to $env:SEED_USER, or the
+    dev user "admin" (see app.security.users).
+
+.PARAMETER Password
+    Password of -User. Defaults to $env:SEED_PASSWORD, or the dev password "admin".
+
 .EXAMPLE
     ./scripts/seed-catalogs.ps1
-    ./scripts/seed-catalogs.ps1 -BaseUrl http://localhost:9090
+    ./scripts/seed-catalogs.ps1 -BaseUrl http://localhost:9090 -User admin -Password admin
 #>
 param(
-    [string]$BaseUrl = "http://localhost:8080"
+    [string]$BaseUrl = "http://localhost:8080",
+    [string]$User = $(if ($env:SEED_USER) { $env:SEED_USER } else { "admin" }),
+    [string]$Password = $(if ($env:SEED_PASSWORD) { $env:SEED_PASSWORD } else { "admin" })
 )
+
+# Basic header built by hand so it works the same on Windows PowerShell 5.1 and PowerShell 7
+# (whose -Credential refuses plain http unless -AllowUnencryptedAuthentication is passed).
+$AuthHeaders = @{
+    Authorization = "Basic " + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("${User}:${Password}"))
+}
 
 function Add-Catalog {
     param(
@@ -22,7 +37,7 @@ function Add-Catalog {
 
     try {
         $created = Invoke-RestMethod -Method Post -Uri "$BaseUrl/admin/api/catalogs/$Type" `
-            -ContentType 'application/json; charset=utf-8' -Body $Payload
+            -Headers $AuthHeaders -ContentType 'application/json; charset=utf-8' -Body $Payload
         Write-Host "  [ok]      $Type '$($created.translations.en.name)' created (201)"
     }
     catch {
@@ -106,6 +121,37 @@ Add-Catalog -Type 'category' -Payload @'
 }
 '@
 
+# Comunidades autónomas y provincias de España: los datos (códigos INE) viven en scripts/data/*.csv,
+# compartidos con seed-catalogs.sh.
+$DataDir = Join-Path $PSScriptRoot 'data'
+
+Write-Host ""
+Write-Host "Seeding Spanish autonomous communities into $BaseUrl/admin/api/catalogs/region ..."
+Import-Csv -Path (Join-Path $DataDir 'spain-regions.csv') -Delimiter '|' -Encoding UTF8 | ForEach-Object {
+    $payload = @{
+        ineCode      = [int]$_.ineCode
+        translations = @{
+            en = @{ name = $_.nameEn; description = $_.descriptionEn }
+            es = @{ name = $_.nameEs; description = $_.descriptionEs }
+        }
+    } | ConvertTo-Json -Depth 4
+    Add-Catalog -Type 'region' -Payload $payload
+}
+
+Write-Host ""
+Write-Host "Seeding Spanish provinces into $BaseUrl/admin/api/catalogs/province ..."
+Import-Csv -Path (Join-Path $DataDir 'spain-provinces.csv') -Delimiter '|' -Encoding UTF8 | ForEach-Object {
+    $payload = @{
+        ineCode      = [int]$_.ineCode
+        regionCode   = [int]$_.regionCode
+        translations = @{
+            en = @{ name = $_.nameEn; description = $_.descriptionEn }
+            es = @{ name = $_.nameEs; description = $_.descriptionEs }
+        }
+    } | ConvertTo-Json -Depth 4
+    Add-Catalog -Type 'province' -Payload $payload
+}
+
 Write-Host ""
 Write-Host "Current brands:"
 (Invoke-RestMethod -Uri "$BaseUrl/api/catalogs/brand") | ForEach-Object { Write-Host "  - $($_.name)" }
@@ -113,3 +159,7 @@ Write-Host "Current brands:"
 Write-Host ""
 Write-Host "Current categories:"
 (Invoke-RestMethod -Uri "$BaseUrl/api/catalogs/category") | ForEach-Object { Write-Host "  - $($_.name)" }
+
+Write-Host ""
+Write-Host "Autonomous communities: $(@(Invoke-RestMethod -Uri "$BaseUrl/api/catalogs/region").Count)"
+Write-Host "Provinces: $(@(Invoke-RestMethod -Uri "$BaseUrl/api/catalogs/province").Count)"

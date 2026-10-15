@@ -14,6 +14,7 @@ import java.time.temporal.Temporal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Lee/escribe, por reflexión, los campos adicionales propios de un tipo de catálogo
@@ -31,6 +32,13 @@ import java.util.Map;
 final class CatalogExtraFieldsAccessor {
 
     private static final DefaultConversionService CONVERSION_SERVICE = new DefaultConversionService();
+
+    private static final ClassValue<Map<String, PropertyDescriptor>> DESCRIPTORS = new ClassValue<>() {
+        @Override
+        protected Map<String, PropertyDescriptor> computeValue(Class<?> type) {
+            return new ConcurrentHashMap<>();
+        }
+    };
 
     private CatalogExtraFieldsAccessor() {
     }
@@ -96,7 +104,7 @@ final class CatalogExtraFieldsAccessor {
      * @throws InvalidCatalogQueryException si {@code values} trae una clave que no es ninguno de
      *         {@code fieldNames} (p. ej. {@code inecode} por {@code ineCode}: sin este chequeo se ignoraría y,
      *         como la escritura sobrescribe, el campo real quedaría a {@code null}), o un valor que no se
-     *         puede convertir al tipo de su campo. Se comprueba todo antes de escribir nada.
+     *         puede convertir al tipo de su campo. Se comprueba to_do antes de escribir nada.
      */
     static void write(Object entity, List<String> fieldNames, Map<String, Object> values) {
         for (String key : values.keySet()) {
@@ -172,7 +180,12 @@ final class CatalogExtraFieldsAccessor {
         return descriptorFor(entity.getClass(), fieldName);
     }
 
+    /** Se resuelve una vez por clase y campo: se lee en cada fila de cada listado. */
     private static PropertyDescriptor descriptorFor(Class<?> entityClass, String fieldName) {
+        return DESCRIPTORS.get(entityClass).computeIfAbsent(fieldName, name -> introspect(entityClass, name));
+    }
+
+    private static PropertyDescriptor introspect(Class<?> entityClass, String fieldName) {
         try {
             PropertyDescriptor descriptor = new PropertyDescriptor(fieldName, entityClass);
             if (descriptor.getReadMethod() == null || descriptor.getWriteMethod() == null) {

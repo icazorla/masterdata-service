@@ -24,7 +24,11 @@ spring:
     properties:
       hibernate:
         default_schema: public
-    show-sql: true
+        # Loads the translations of up to 100 entries in one query instead of one query per entry.
+        default_batch_fetch_size: 100
+    show-sql: false
+    # Entities are mapped to Catalog inside the transaction; no lazy loading happens in the view.
+    open-in-view: false
 
 server:
   port: 8080

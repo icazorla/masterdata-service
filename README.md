@@ -260,7 +260,7 @@ curl -i "http://localhost:8080/api/catalogs/province?paged=true&page=1&size=10&s
 
 ### 4. Multi-idioma (i18n)
 
-- Idiomas soportados: **`en`** (por defecto) y **`es`** (`app.i18n.supported-locales`).
+- Idiomas soportados: **`en`** (por defecto) y **`es`**. Se configuran en `application.yml`: `app.i18n.supported-locales` (los admitidos en `translations`) y `spring.web.locale` (el idioma por defecto). La validación, el fallback de las respuestas y el filtro/orden en base de datos usan esos mismos valores.
 - El cliente elige idioma con la cabecera **`Accept-Language`**. Afecta a:
   - el `name`/`description` devuelto en lecturas y listados;
   - el idioma sobre el que se filtra y ordena;
@@ -283,7 +283,8 @@ Por ejemplo, las provincias de Andalucía: `GET /api/catalogs/province?filter=re
 - Viajan en el JSON como atributos normales de primer nivel (`"ineCode": 41`), tanto en la petición como en la respuesta.
 - Se pueden usar en `sortBy` y como filtro del listado (solo en su tipo; ver [punto 3](#3-consultas-filtrado-ordenación-y-paginación)).
 - En POST/PUT se sobrescriben por completo: omitir uno lo deja vacío.
-- Las claves que no correspondan a un campo del tipo se ignoran.
+- Un atributo que no sea un campo del tipo (p. ej. una errata como `inecode`) se rechaza con **422**, en vez de ignorarse y dejar vacío el campo real. Solo se ignoran `id`, `type`, `createdAt` y `updatedAt`, para poder reenviar tal cual una respuesta de la API de gestión.
+- Cada valor se convierte al tipo de su columna: `"ineCode": "41"` vale, pero `"ineCode": "abc"` o `"ineCode": 4.5` → **422**. Las fechas van en ISO-8601.
 - Solo pueden ser columnas simples, no relaciones JPA: por eso `regionCode` es un código y no una `@ManyToOne` a `region`.
 
 ### 6. Actualización parcial con JSON Patch (RFC 6902)
@@ -313,7 +314,7 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 
 - El patch es **atómico**: si una operación falla, no se aplica ninguna.
 - `id`, `type`, `createdAt` y `updatedAt` no forman parte del documento y no se pueden modificar: `replace`/`remove` sobre ellos falla con 400, y un `add` se ignora.
-- El resultado se valida con las mismas reglas que POST/PUT (p. ej. quitar `/translations/en` → 400).
+- El resultado se valida con las mismas reglas que POST/PUT (p. ej. quitar `/translations/en` → 400; añadir un atributo que no es campo del tipo → 422).
 
 | Status | Cuándo |
 |--------|--------|
@@ -322,17 +323,19 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 | 404 | Entrada no encontrada |
 | 409 | Una operación `test` falló, o el nombre resultante ya existe |
 | 415 | `Content-Type` distinto de `application/json-patch+json` |
+| 422 | El resultado trae un atributo que no es campo del tipo, o un valor que no encaja con su tipo |
 
 ### 7. Validaciones y reglas de negocio
 
 | Regla | Respuesta |
 |-------|-----------|
 | `translations` presente y no vacío | 400 |
-| `translations` incluye `en` y solo idiomas soportados (`en`, `es`) | 400 |
+| `translations` incluye el idioma por defecto (`en`) y solo idiomas soportados (`en`, `es`) | 400 |
 | `name` obligatorio, no vacío, máx. 80 caracteres | 400 |
 | `description` máx. 500 caracteres | 400 |
 | **Nombre único** por tipo e idioma, sin distinguir mayúsculas (dos provincias no pueden llamarse "Seville" en `en`; una provincia y una comunidad sí, p. ej. "Madrid") | 409 |
 | Restricciones de base de datos (p. ej. `ineCode` repetido) | 409 |
+| Los atributos extra deben ser campos del tipo, con un valor convertible a su tipo de dato | 422 |
 | `sortBy` debe ser un campo ordenable del tipo | 422 |
 | Los filtros deben nombrar un campo filtrable del tipo, con un operador y un valor válidos para su tipo de dato | 422 |
 | `sortDirection` debe ser `ASC` o `DESC` | 400 |
@@ -362,7 +365,7 @@ Todas las respuestas de error tienen el mismo formato, con `message` localizado 
 | 405 | Método no permitido (p. ej. `POST` sobre la API de consulta) |
 | 409 | Nombre duplicado, `test` de JSON Patch fallido, o violación de integridad en base de datos |
 | 415 | `Content-Type` no soportado |
-| 422 | Consulta bien formada pero no válida (`sortBy` no ordenable, filtro no válido) |
+| 422 | Petición bien formada pero no válida para el tipo: `sortBy` no ordenable, filtro no válido, o un campo extra desconocido o con un valor que no encaja |
 | 500 | Error interno |
 
 ### 9. Caché
@@ -394,18 +397,6 @@ app:
 - Campos: `enabled`, `maximum-size`, `expire-after-write`, `expire-after-access`, `stats` y `native-options` (vía de escape con opciones propias de la librería).
 - Con varias instancias, o si se modifica la base de datos directamente, un cambio puede tardar hasta la caducidad del tipo en verse en las demás instancias.
 - **Estado en Actuator**: `/actuator/caches` (lista estándar de Spring) y, por caché, tamaño y aciertos/fallos en `/actuator/metrics/cache.size` y `/actuator/metrics/cache.gets?tag=cache:catalogById:province` (`stats`, si `stats: true`).
-
-```json
-"province": {
-  "settings": { "enabled": true, "maximumSize": 200, "expireAfterWrite": "PT12H", "expireAfterAccess": "PT10M",
-                "stats": true, "nativeOptions": {} },
-  "caches": {
-    "catalogById:province":  { "active": true, "size": 12,
-                               "stats": { "requests": 40, "hits": 28, "misses": 12, "hitRate": 0.7, "evictions": 0 } },
-    "catalogLists:province": { "...": "..." }
-  }
-}
-```
 
 ### 10. Añadir un nuevo tipo de catálogo
 
@@ -525,16 +516,14 @@ io.masterdata
 ├── common/
 │   ├── catalog/
 │   │   ├── domain/                   Modelo (Catalog, CatalogType, CatalogField…) y excepciones
-│   │   │   ├── port/                 Puertos: CatalogRepository, CatalogMapper, CatalogFilter, comandos y criterios
-│   │   │   └── service/              CatalogQueryService (lecturas, cacheables) y CatalogCommandService (escrituras)
+│   │   │   ├── port/                 Puertos: CatalogRepository, CatalogFilter, comandos y criterios
+│   │   │   └── service/              CatalogQueryService (lecturas, cacheables), CatalogCommandService (escrituras) y CatalogMapper
 │   │   ├── infrastructure/
 │   │   │   ├── persistence/          Adaptador JPA genérico, CatalogBaseEntity, naming strategy, CatalogProperties
 │   │   │   ├── cache/                Cachés por tipo, SPI + implementación Caffeine
-│   │   │   ├── i18n/                 Nombres localizados de los tipos
-│   │   │   └── rest/                 Adaptador del mapper REST
-│   │   └── interfaces/rest/          Controllers (query/ y admin/), DTOs y mapper
-│   ├── domain/                       Tipos compartidos: PageResult, Paging, excepciones base
-│   ├── infrastructure/persistence/   Entidades base compartidas
+│   │   │   └── i18n/                 Nombres localizados de los tipos
+│   │   └── interfaces/rest/          Controllers (query/ y admin/), DTOs, CatalogRestMapper y textos OpenAPI
+│   ├── domain/                       Tipos compartidos: PageResult, Paging, excepciones base (LocalizedException)
 │   └── rest/                         Manejo de errores, cabeceras de paginación, JSON Patch
 └── config/                           OpenAPI y seguridad
 ```

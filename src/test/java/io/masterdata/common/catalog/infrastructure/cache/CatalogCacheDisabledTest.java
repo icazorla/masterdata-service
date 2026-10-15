@@ -8,7 +8,6 @@ import io.masterdata.common.catalog.domain.port.CatalogTranslationCommand;
 import io.masterdata.common.catalog.domain.port.UpdateCatalogCommand;
 import io.masterdata.common.catalog.domain.service.CatalogCommandService;
 import io.masterdata.common.catalog.domain.service.CatalogQueryService;
-import io.masterdata.common.catalog.infrastructure.persistence.CatalogMapperAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,8 +33,7 @@ import static org.mockito.Mockito.when;
  * ({@code region}) sigue cacheando. Las cachés desactivadas no se crean y {@link CatalogCacheResolver}
  * les da un {@code NoOpCache}, así que lecturas y comandos funcionan igual, sin cachear.
  */
-@SpringJUnitConfig({CatalogCacheConfig.class, CatalogQueryService.class, CatalogCommandService.class,
-        CatalogMapperAdapter.class, CatalogCacheTest.TxConfig.class})
+@SpringJUnitConfig({CatalogCacheConfig.class, CatalogQueryService.class, CatalogCommandService.class, CatalogCacheTest.TxConfig.class})
 @TestPropertySource(properties = {
         "app.catalog.cache.enabled=false",
         "app.catalog.types.region.cache.enabled=true",

@@ -1,5 +1,6 @@
 package io.masterdata.common.catalog.infrastructure.persistence;
 
+import io.masterdata.common.catalog.domain.exception.InvalidCatalogQueryException;
 import org.springframework.core.convert.ConversionException;
 import org.springframework.core.convert.support.DefaultConversionService;
 
@@ -17,8 +18,8 @@ import java.util.Map;
 /**
  * Lee/escribe, por reflexión, los campos adicionales propios de un tipo de catálogo
  * concreto ({@code CatalogTypeDescriptor#extraFields()} — solo nombres, p. ej.
- * {@code "website"} para {@code brand}) contra el getter/setter de JavaBean real de esa
- * entidad ({@code BrandEntity#getWebsite}/{@code #setWebsite}, generados por Lombok
+ * {@code "regionCode"} para {@code province}) contra el getter/setter de JavaBean real de esa
+ * entidad ({@code ProvinceEntity#getRegionCode}/{@code #setRegionCode}, generados por Lombok
  * {@code @Data}). Existe para que {@link CatalogRepositoryAdapter} —agnóstico de qué
  * campos extra tiene cada tipo— pueda copiarlos entre la entidad y el
  * {@code Map<String, Object>} genérico de {@code Catalog#getExtraFields()} sin conocer
@@ -90,16 +91,38 @@ final class CatalogExtraFieldsAccessor {
      * Escribe cada campo en {@code fieldNames} sobre {@code entity} vía su setter, tomando el
      * valor de {@code values} ({@code null} si esa clave no está presente — igual que
      * {@code weight}/{@code translations}, esto sobrescribe el campo por completo, no lo fusiona).
+     * Cada valor se convierte antes al tipo de la propiedad (ver {@link #toPropertyType}).
+     *
+     * @throws InvalidCatalogQueryException si un valor no se puede convertir al tipo de su campo
      */
     static void write(Object entity, List<String> fieldNames, Map<String, Object> values) {
         for (String fieldName : fieldNames) {
             PropertyDescriptor descriptor = descriptorFor(entity, fieldName);
+            Object value = toPropertyType(entity.getClass(), descriptor, values.get(fieldName));
             try {
-                descriptor.getWriteMethod().invoke(entity, values.get(fieldName));
+                descriptor.getWriteMethod().invoke(entity, value);
             } catch (IllegalAccessException | InvocationTargetException | IllegalArgumentException e) {
                 throw new IllegalStateException(
                         "Cannot write extra field '" + fieldName + "' onto " + entity.getClass().getSimpleName(), e);
             }
+        }
+    }
+
+    /**
+     * {@code value} tal como lo deja Jackson ({@code String}, {@code Integer}, {@code Double}, ...)
+     * convertido al tipo de la propiedad con la misma conversión que los filtros ({@link #convert}):
+     * {@code "5"} vale para un {@code Integer}, una fecha llega como texto ISO-8601, y {@code 5.5}
+     * o {@code "abc"} para un {@code Integer} se rechazan en vez de truncarse o reventar el setter.
+     */
+    private static Object toPropertyType(Class<?> entityClass, PropertyDescriptor descriptor, Object value) {
+        if (value == null || descriptor.getPropertyType().isInstance(value)) {
+            return value;
+        }
+        try {
+            return convert(entityClass, descriptor.getName(), value.toString());
+        } catch (IllegalArgumentException e) {
+            throw InvalidCatalogQueryException.invalidFieldValue(descriptor.getName(), value,
+                    dataTypeOf(descriptor.getPropertyType()));
         }
     }
 

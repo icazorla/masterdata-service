@@ -11,9 +11,9 @@ import org.springframework.boot.hibernate.SpringImplicitNamingStrategy;
  * declarar su {@code @CollectionTable}: en cualquier subclase de {@link CatalogBaseEntity}, la
  * colección {@code translations} se guarda en {@code <tipo>_translations} con FK
  * {@code <tipo>_id}, donde {@code <tipo>} es el nombre de la clase sin el sufijo {@code Entity}
- * ({@code BrandEntity} → {@code Brand}). {@code CamelCaseToUnderscoresNamingStrategy} (la
- * estrategia física por defecto de Spring) lo convierte después en {@code brand_translations} /
- * {@code brand_id}, o {@code product_category_translations} para {@code ProductCategoryEntity}.
+ * ({@code ProvinceEntity} → {@code Province}). {@code CamelCaseToUnderscoresNamingStrategy} (la
+ * estrategia física por defecto de Spring) lo convierte después en {@code province_translations} /
+ * {@code province_id}.
  *
  * <p>Extiende la estrategia implícita por defecto de Spring, así que cualquier otra entidad o
  * colección conserva exactamente los nombres que tenía. Registrada en {@code application.yml}
@@ -63,7 +63,7 @@ public class CatalogImplicitNamingStrategy extends SpringImplicitNamingStrategy 
         }
     }
 
-    /** {@code io.masterdata.catalog.BrandEntity} → {@code Brand}. */
+    /** {@code io.masterdata.catalog.ProvinceEntity} → {@code Province}. */
     private static String typeName(EntityNaming naming) {
         String className = naming.getClassName();
         String simple = className.substring(className.lastIndexOf('.') + 1);

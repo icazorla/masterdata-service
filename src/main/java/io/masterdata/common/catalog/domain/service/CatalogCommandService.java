@@ -4,7 +4,6 @@ import io.masterdata.common.catalog.domain.Catalog;
 import io.masterdata.common.catalog.domain.CatalogType;
 import io.masterdata.common.catalog.domain.exception.CatalogNotFoundException;
 import io.masterdata.common.catalog.domain.exception.DuplicateCatalogNameException;
-import io.masterdata.common.catalog.domain.port.CatalogMapper;
 import io.masterdata.common.catalog.domain.port.CatalogRepository;
 import io.masterdata.common.catalog.domain.port.CatalogTranslationCommand;
 import io.masterdata.common.catalog.domain.port.CreateCatalogCommand;
@@ -40,12 +39,11 @@ import java.util.List;
 public class CatalogCommandService {
 
     private final CatalogRepository repository;
-    private final CatalogMapper mapper;
 
     @CacheEvict(cacheNames = CatalogCacheNames.LISTS, allEntries = true)
     public Catalog create(CreateCatalogCommand cmd) {
         requireTranslationsUnused(cmd.type(), cmd.translations(), null);
-        return repository.save(mapper.toDomain(cmd));
+        return repository.save(CatalogMapper.toDomain(cmd));
     }
 
     @Caching(evict = {
@@ -57,7 +55,7 @@ public class CatalogCommandService {
                 .orElseThrow(() -> new CatalogNotFoundException(type, id));
         requireTranslationsUnused(type, cmd.translations(), id);
 
-        Catalog updated = mapper.applyUpdate(existing, cmd);
+        Catalog updated = CatalogMapper.applyUpdate(existing, cmd);
         return repository.save(updated);
     }
 
@@ -81,10 +79,7 @@ public class CatalogCommandService {
 
     private void requireTranslationsUnused(CatalogType type, List<CatalogTranslationCommand> translations, Long excludeId) {
         for (CatalogTranslationCommand t : translations) {
-            boolean nameTaken = excludeId == null
-                    ? repository.existsByLocaleAndNameIgnoreCase(type, t.locale(), t.name())
-                    : repository.existsByLocaleAndNameIgnoreCaseAndIdNot(type, t.locale(), t.name(), excludeId);
-            if (nameTaken) {
+            if (repository.existsByLocaleAndName(type, t.locale(), t.name(), excludeId)) {
                 throw new DuplicateCatalogNameException(type, t.name());
             }
         }

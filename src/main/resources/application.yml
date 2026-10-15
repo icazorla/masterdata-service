@@ -41,9 +41,8 @@ management:
   endpoints:
     web:
       exposure:
-        # caches: standard cache list; catalogcaches: per catalog type settings, size and
-        # hit/miss stats (CatalogCachesEndpoint)
-        include: health,info,metrics,caches,catalogcaches
+        # caches: standard cache list; per cache size and hit/miss stats in metrics (cache.*)
+        include: health,info,metrics,caches
   endpoint:
     health:
       # details only for authenticated users with role ADMIN (see SecurityConfig)

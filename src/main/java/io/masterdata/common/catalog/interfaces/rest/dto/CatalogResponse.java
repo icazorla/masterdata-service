@@ -13,8 +13,8 @@ import java.util.Map;
  * el listado siempre es {@code true}, pero la consulta por id devuelve también entradas
  * desactivadas y el cliente necesita distinguirlas.
  *
- * <p> * {@code extraFields} son los campos propios de {@code type} (p. ej. {@code website} solo
- * para {@code brand}), servidos como atributos normales de primer nivel del JSON —no
+ * <p> * {@code extraFields} son los campos propios de {@code type} (p. ej. {@code regionCode} solo
+ * para {@code province}), servidos como atributos normales de primer nivel del JSON —no
  * anidados bajo una clave {@code "extraFields"}— gracias al accesor sobrescrito más abajo
  * con {@link JsonAnyGetter}; ver {@code CatalogRequest} para el porqué de este mismo
  * mecanismo en el lado de entrada.

@@ -6,19 +6,16 @@ import io.masterdata.common.catalog.domain.CatalogType;
 import io.masterdata.common.catalog.domain.TestCatalogTypes;
 import io.masterdata.common.catalog.domain.exception.CatalogNotFoundException;
 import io.masterdata.common.catalog.domain.exception.DuplicateCatalogNameException;
-import io.masterdata.common.catalog.domain.port.CatalogMapper;
 import io.masterdata.common.catalog.domain.port.CatalogRepository;
 import io.masterdata.common.catalog.domain.port.CatalogTranslationCommand;
 import io.masterdata.common.catalog.domain.port.CreateCatalogCommand;
 import io.masterdata.common.catalog.domain.port.UpdateCatalogCommand;
-import io.masterdata.common.catalog.infrastructure.persistence.CatalogMapperAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -46,9 +43,6 @@ class CatalogCommandServiceTest {
     @Mock
     private CatalogRepository repository;
 
-    @Spy
-    private CatalogMapper mapper = new CatalogMapperAdapter();
-
     @InjectMocks
     private CatalogCommandService service;
 
@@ -71,7 +65,7 @@ class CatalogCommandServiceTest {
     @Test
     @DisplayName("create persiste la entrada cuando el nombre es nuevo en cada idioma")
     void create_persistsWhenNameNew() {
-        when(repository.existsByLocaleAndNameIgnoreCase(REGION, "en", "Logitech")).thenReturn(false);
+        when(repository.existsByLocaleAndName(REGION, "en", "Logitech", null)).thenReturn(false);
         when(repository.save(any(Catalog.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Catalog result = service.create(validCreate);
@@ -84,7 +78,7 @@ class CatalogCommandServiceTest {
     @Test
     @DisplayName("create lanza DuplicateCatalogNameException cuando el nombre ya existe en ese idioma")
     void create_throwsWhenNameDuplicated() {
-        when(repository.existsByLocaleAndNameIgnoreCase(REGION, "en", "Logitech")).thenReturn(true);
+        when(repository.existsByLocaleAndName(REGION, "en", "Logitech", null)).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(validCreate))
                 .isInstanceOf(DuplicateCatalogNameException.class)
@@ -98,7 +92,7 @@ class CatalogCommandServiceTest {
     void update_modifiesWhenNameUnchanged() {
         UpdateCatalogCommand updateCmd = new UpdateCatalogCommand(5, true, Map.of(), List.of(new CatalogTranslationCommand("en", "Logitech", "New description")));
         when(repository.findById(REGION, 1L)).thenReturn(Optional.of(sample));
-        when(repository.existsByLocaleAndNameIgnoreCaseAndIdNot(REGION, "en", "Logitech", 1L)).thenReturn(false);
+        when(repository.existsByLocaleAndName(REGION, "en", "Logitech", 1L)).thenReturn(false);
         when(repository.save(any(Catalog.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Catalog result = service.update(REGION, 1L, updateCmd);
@@ -112,7 +106,7 @@ class CatalogCommandServiceTest {
     void update_throwsWhenNewNameExists() {
         UpdateCatalogCommand updateCmd = new UpdateCatalogCommand(0, true, Map.of(), List.of(new CatalogTranslationCommand("en", "Samsung", "desc")));
         when(repository.findById(REGION, 1L)).thenReturn(Optional.of(sample));
-        when(repository.existsByLocaleAndNameIgnoreCaseAndIdNot(REGION, "en", "Samsung", 1L)).thenReturn(true);
+        when(repository.existsByLocaleAndName(REGION, "en", "Samsung", 1L)).thenReturn(true);
 
         assertThatThrownBy(() -> service.update(REGION, 1L, updateCmd))
                 .isInstanceOf(DuplicateCatalogNameException.class);

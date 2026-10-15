@@ -3,12 +3,8 @@ package io.masterdata.common.domain;
 import java.util.List;
 
 /**
- * Una página de resultados de {@code T} — {@code content}/{@code page}/{@code size}/
- * {@code totalElements}/{@code totalPages} agrupados en un único record parametrizado
- * en lugar de un record {@code *Page} dedicado por feature (antes
- * {@code ProductPage}). Cualquier {@code *Repository#search} que devuelva una página de
- * su propio agregado reutiliza esto en lugar de repetir los mismos cinco campos
- * bajo un nombre nuevo. Todo endpoint de listado paginado proyecta esto directamente
+ * Una página de resultados de {@code T}: {@code content}/{@code page}/{@code size}/
+ * {@code totalElements}/{@code totalPages}. Todo endpoint de listado paginado proyecta esto directamente
  * sobre su respuesta HTTP — la lista de resultados más
  * {@link io.masterdata.common.rest.PageHeaders} — sin un DTO envoltorio aparte.
  *

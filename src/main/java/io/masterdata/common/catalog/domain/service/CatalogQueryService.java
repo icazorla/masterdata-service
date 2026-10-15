@@ -11,7 +11,6 @@ import io.masterdata.common.catalog.domain.port.CatalogSearchCriteria;
 import io.masterdata.common.catalog.domain.port.CatalogFilter;
 import io.masterdata.common.domain.PageResult;
 import io.masterdata.common.domain.Paging;
-import io.masterdata.common.domain.SortableFieldValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.Cacheable;
@@ -26,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Casos de uso de <b>lectura</b> de todo catálogo de datos maestros (marca, categoría, ...):
+ * Casos de uso de <b>lectura</b> de todo catálogo de datos maestros (comunidad autónoma, provincia, ...):
  * la mitad "query" del par {@link CatalogQueryService}/{@link CatalogCommandService} (CQRS
  * ligero). Lo usan tanto la API de consulta ({@code /api/catalogs}) como las lecturas de la
  * API de gestión ({@code /admin/api/catalogs}); ningún método aquí modifica estado, así que
@@ -52,8 +51,8 @@ public class CatalogQueryService {
      * Nombres de campo comunes a todo catálogo que {@link #findAll} acepta para
      * {@code sortBy}. {@code weight} es un entero manual, no traducido — a diferencia de
      * {@code name}/{@code description} no depende del locale del cliente. Los campos
-     * adicionales propios de un tipo concreto (p. ej. {@code website} solo para
-     * {@code brand}) también son ordenables, pero esos no son fijos — se resuelven por tipo
+     * adicionales propios de un tipo concreto (p. ej. {@code regionCode} solo para
+     * {@code province}) también son ordenables, pero esos no son fijos — se resuelven por tipo
      * vía {@link CatalogRepository#sortableExtraFields} en {@link #findAll}.
      */
     static final Set<String> ALLOWED_SORT_FIELDS = Set.of("name", "description", "weight");
@@ -97,18 +96,14 @@ public class CatalogQueryService {
                 .orElseThrow(() -> new CatalogNotFoundException(type, id));
     }
 
-    public boolean existsById(CatalogType type, Long id) {
-        return repository.existsById(type, id);
-    }
-
     /**
      * Lista filtrada y ordenada (en base de datos, ver {@link CatalogRepository#findAll})
      * de las entradas de {@code type}, resuelta para {@code locale}. Que {@code sortBy}
      * nombre un campo realmente ordenable de catálogo es conocimiento de negocio, así
      * que se comprueba aquí (422 si no lo es) — combinando los fijos
      * ({@link #ALLOWED_SORT_FIELDS}) con los propios de {@code type}
-     * ({@link CatalogRepository#sortableExtraFields}), así que {@code sortBy=website} es
-     * válido para {@code brand} pero no para {@code category}.
+     * ({@link CatalogRepository#sortableExtraFields}), así que {@code sortBy=regionCode} es
+     * válido para {@code province} pero no para {@code region}.
      *
      * <p>Los filtros ({@link CatalogSearchCriteria#filters}) también se validan aquí: cada uno debe
      * nombrar un campo filtrable de {@code type} (uno común de {@link CatalogFilter#COMMON_FIELDS} o
@@ -141,7 +136,9 @@ public class CatalogQueryService {
     private void requireSortable(CatalogType type, String sortBy) {
         Set<String> allowedFields = new LinkedHashSet<>(ALLOWED_SORT_FIELDS);
         allowedFields.addAll(repository.sortableExtraFields(type));
-        SortableFieldValidator.requireSortable(sortBy, allowedFields, InvalidCatalogQueryException::new);
+        if (!allowedFields.contains(sortBy)) {
+            throw new InvalidCatalogQueryException(sortBy, allowedFields);
+        }
     }
 
     private void requireFilterable(CatalogType type, CatalogSearchCriteria criteria) {

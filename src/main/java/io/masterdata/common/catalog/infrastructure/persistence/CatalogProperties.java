@@ -12,8 +12,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * resuelve los nombres de clase de cada entrada mediante reflexión para construir el
  * registro real de {@code CatalogTypeDescriptor}, de modo que añadir un tipo de catálogo
  * es un cambio de configuración más su clase {@code @Entity}, nunca una nueva clase
- * Java de registro. Los campos adicionales propios de cada tipo (p. ej. {@code website} en
- * {@code brand}) no se configuran aquí: {@link CatalogPersistenceConfig#discoverExtraFields}
+ * Java de registro. Los campos adicionales propios de cada tipo (p. ej. {@code regionCode} en
+ * {@code province}) no se configuran aquí: {@link CatalogPersistenceConfig#discoverExtraFields}
  * los deduce de las columnas de la entidad. {@code names} lleva el
  * nombre traducido del tipo por idioma, usado en los mensajes de error (ver
  * {@code CatalogTypeNamesMessageSource}).

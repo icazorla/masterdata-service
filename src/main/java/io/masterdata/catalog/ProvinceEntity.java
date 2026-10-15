@@ -1,7 +1,6 @@
 package io.masterdata.catalog;
 
 import io.masterdata.common.catalog.infrastructure.persistence.CatalogBaseEntity;
-import io.masterdata.common.catalog.infrastructure.persistence.CatalogEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -29,7 +28,7 @@ import lombok.ToString;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProvinceEntity extends CatalogBaseEntity implements CatalogEntity {
+public class ProvinceEntity extends CatalogBaseEntity {
 
     @Column(name = "ine_code", unique = true)
     private Integer ineCode;

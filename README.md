@@ -393,7 +393,7 @@ app:
 
 - Campos: `enabled`, `maximum-size`, `expire-after-write`, `expire-after-access`, `stats` y `native-options` (vía de escape con opciones propias de la librería).
 - Con varias instancias, o si se modifica la base de datos directamente, un cambio puede tardar hasta la caducidad del tipo en verse en las demás instancias.
-- **Estado en Actuator**: `GET /actuator/catalogcaches` (o `/actuator/catalogcaches/{type}`) muestra el proveedor, la configuración efectiva de cada tipo y, por caché, tamaño y aciertos/fallos (`stats`, si `stats: true`). También `/actuator/caches` (lista estándar de Spring) y `/actuator/metrics/cache.gets`.
+- **Estado en Actuator**: `/actuator/caches` (lista estándar de Spring) y, por caché, tamaño y aciertos/fallos en `/actuator/metrics/cache.size` y `/actuator/metrics/cache.gets?tag=cache:catalogById:province` (`stats`, si `stats: true`).
 
 ```json
 "province": {
@@ -411,7 +411,7 @@ app:
 
 Sin escribir controller, servicio ni repositorio:
 
-1. Crear una clase `@Entity` en `io.masterdata.catalog`, copiando `RegionEntity` (extiende `CatalogBaseEntity` e implementa `CatalogEntity`). Sus traducciones se heredan de `CatalogBaseEntity` y se guardan en `<tipo>_translations` con FK `<tipo>_id` (nombre de clase sin `Entity`, ver `CatalogImplicitNamingStrategy`), sin declarar nada. Las columnas propias del tipo (p. ej. `hexCode`) se declaran en la entidad y se exponen solas en la API, sin configurarlas; solo pueden ser columnas simples (ver [punto 5](#5-campos-adicionales-por-tipo)).
+1. Crear una clase `@Entity` en `io.masterdata.catalog`, copiando `RegionEntity` (extiende `CatalogBaseEntity`). Sus traducciones se heredan de `CatalogBaseEntity` y se guardan en `<tipo>_translations` con FK `<tipo>_id` (nombre de clase sin `Entity`, ver `CatalogImplicitNamingStrategy`), sin declarar nada. Las columnas propias del tipo (p. ej. `hexCode`) se declaran en la entidad y se exponen solas en la API, sin configurarlas; solo pueden ser columnas simples (ver [punto 5](#5-campos-adicionales-por-tipo)).
 2. Añadir el tipo en `application.yml`:
    ```yaml
    app:
@@ -466,7 +466,7 @@ Los 401/403 usan el mismo formato de error y los mismos mensajes localizados que
 - Java 17
 - Spring Boot 4.1.1 (Web, Validation, Data JPA + Hibernate, Cache, Actuator, Security)
 - PostgreSQL (ejecución) / H2 en memoria (solo tests)
-- Lombok + MapStruct
+- Lombok
 - springdoc-openapi 3.1 (Swagger UI)
 - Caffeine (caché en memoria, vía Spring Cache; la librería es intercambiable)
 
@@ -506,7 +506,7 @@ Si las comunidades/provincias ya existen pero les faltan traducciones, [scripts/
 
 Cada operación documenta la cabecera `Accept-Language` con los idiomas soportados.
 
-Monitorización (Actuator): `/actuator/health`, `/actuator/info`, `/actuator/metrics`, `/actuator/caches` y `/actuator/catalogcaches` (estado de las cachés por tipo, ver [punto 9](#9-caché)). Salvo `health` e `info`, requieren rol `ADMIN` ([punto 11](#11-seguridad)); por eso `/actuator/caches` admite también `DELETE` para vaciar cachés (`management.endpoint.caches.access: unrestricted`).
+Monitorización (Actuator): `/actuator/health`, `/actuator/info`, `/actuator/metrics`, `/actuator/caches` (cachés, ver [punto 9](#9-caché)). Salvo `health` e `info`, requieren rol `ADMIN` ([punto 11](#11-seguridad)); por eso `/actuator/caches` admite también `DELETE` para vaciar cachés (`management.endpoint.caches.access: unrestricted`).
 
 ## Build y tests
 ```bash
@@ -533,7 +533,7 @@ io.masterdata
 │   │   │   └── service/              CatalogQueryService (lecturas, cacheables) y CatalogCommandService (escrituras)
 │   │   ├── infrastructure/
 │   │   │   ├── persistence/          Adaptador JPA genérico, CatalogBaseEntity, naming strategy, CatalogProperties
-│   │   │   ├── cache/                Cachés por tipo, endpoint catalogcaches, SPI + implementación Caffeine
+│   │   │   ├── cache/                Cachés por tipo, SPI + implementación Caffeine
 │   │   │   ├── i18n/                 Nombres localizados de los tipos
 │   │   │   └── rest/                 Adaptador del mapper REST
 │   │   └── interfaces/rest/          Controllers (query/ y admin/), DTOs y mapper

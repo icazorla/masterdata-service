@@ -13,11 +13,7 @@ import java.util.Set;
  */
 public class InvalidCatalogQueryException extends InvalidQueryException {
 
-    /**
-     * Coincide con la forma de la fábrica de excepciones de
-     * {@link io.masterdata.common.domain.SortableFieldValidator}, de modo que
-     * {@code InvalidCatalogQueryException::new} pueda usarse allí como method reference.
-     */
+    /** {@code sortBy} no es ninguno de {@code allowedFields}. */
     public InvalidCatalogQueryException(String sortBy, Set<String> allowedFields) {
         super("sortBy '" + sortBy + "' is not sortable. Allowed values: " + allowedFields,
                 "error.query.invalidSortField", sortBy, allowedFields);
@@ -74,5 +70,16 @@ public class InvalidCatalogQueryException extends InvalidQueryException {
         return new InvalidCatalogQueryException(
                 "Value '" + value + "' is not a valid " + dataType + " for filter '" + field + "'",
                 "error.query.invalidFilterValue", field, value, dataType);
+    }
+
+    /**
+     * Un campo adicional del payload de creación/actualización trae un valor que no se puede
+     * convertir a su tipo (p. ej. {@code "ineCode": "abc"}). También 422: el JSON es válido,
+     * pero su contenido no encaja con el catálogo.
+     */
+    public static InvalidCatalogQueryException invalidFieldValue(String field, Object value, String dataType) {
+        return new InvalidCatalogQueryException(
+                "Value '" + value + "' is not a valid " + dataType + " for field '" + field + "'",
+                "error.catalog.invalidFieldValue", field, value, dataType);
     }
 }

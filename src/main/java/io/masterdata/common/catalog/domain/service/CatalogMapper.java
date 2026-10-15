@@ -1,23 +1,23 @@
-package io.masterdata.common.catalog.domain.port;
+package io.masterdata.common.catalog.domain.service;
 
 import io.masterdata.common.catalog.domain.Catalog;
 import io.masterdata.common.catalog.domain.CatalogTranslation;
+import io.masterdata.common.catalog.domain.port.CatalogTranslationCommand;
+import io.masterdata.common.catalog.domain.port.CreateCatalogCommand;
+import io.masterdata.common.catalog.domain.port.UpdateCatalogCommand;
 
 import java.util.List;
 
 /**
- * Puerto del mapper de dominio. Mapea {@link CreateCatalogCommand}/
- * {@link UpdateCatalogCommand} al agregado {@link Catalog}.
- *
- * <p>A diferencia del antiguo {@code BrandMapper}/{@code CategoryMapper} por
- * agregado, aquí todos los métodos pueden ser métodos default: construir un
- * {@link Catalog} a partir de un comando no necesita nada más allá del propio
- * {@code type}/{@code translations} del comando — no queda ninguna variación
- * por tipo de catálogo que delegar a un adaptador de infraestructura/MapStruct.
+ * Mapea {@link CreateCatalogCommand}/{@link UpdateCatalogCommand} al agregado {@link Catalog}.
+ * Solo lo usa {@link CatalogCommandService}.
  */
-public interface CatalogMapper {
+final class CatalogMapper {
 
-    default Catalog toDomain(CreateCatalogCommand cmd) {
+    private CatalogMapper() {
+    }
+
+    static Catalog toDomain(CreateCatalogCommand cmd) {
         return Catalog.builder()
                 .type(cmd.type())
                 .weight(cmd.weight())
@@ -27,7 +27,7 @@ public interface CatalogMapper {
                 .build();
     }
 
-    default Catalog applyUpdate(Catalog existing, UpdateCatalogCommand cmd) {
+    static Catalog applyUpdate(Catalog existing, UpdateCatalogCommand cmd) {
         return existing.toBuilder()
                 .weight(cmd.weight())
                 .enabled(cmd.enabled())

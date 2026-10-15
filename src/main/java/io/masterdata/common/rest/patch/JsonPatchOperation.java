@@ -16,7 +16,7 @@ public record JsonPatchOperation(
                 allowableValues = {"add", "remove", "replace", "move", "copy", "test"})
         String op,
 
-        @Schema(description = "JSON Pointer (RFC 6901) del elemento objetivo", example = "/price")
+        @Schema(description = "JSON Pointer (RFC 6901) del elemento objetivo", example = "/weight")
         String path,
 
         @Schema(description = "Valor a aplicar. Requerido para add/replace/test, ignorado en remove/move/copy.")

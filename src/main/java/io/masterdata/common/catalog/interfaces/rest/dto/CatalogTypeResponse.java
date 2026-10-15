@@ -7,7 +7,7 @@ import java.util.List;
 
 @Schema(description = "Un tipo de catálogo configurado y la definición de sus campos")
 public record CatalogTypeResponse(
-        @Schema(description = "Código del tipo, el segmento {type} de /api/catalogs/{type}", example = "brand", implementation = String.class)
+        @Schema(description = "Código del tipo, el segmento {type} de /api/catalogs/{type}", example = "province", implementation = String.class)
         CatalogType type,
         @Schema(description = "Nombre del tipo traducido según Accept-Language", example = "Marca")
         String name,

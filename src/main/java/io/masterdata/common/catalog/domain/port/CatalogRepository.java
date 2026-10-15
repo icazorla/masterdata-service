@@ -4,6 +4,7 @@ import io.masterdata.common.catalog.domain.Catalog;
 import io.masterdata.common.catalog.domain.CatalogType;
 import io.masterdata.common.domain.PageResult;
 import io.masterdata.common.domain.Paging;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -21,17 +22,15 @@ public interface CatalogRepository {
 
     Optional<Catalog> findById(CatalogType type, Long id);
 
-    boolean existsById(CatalogType type, Long id);
-
-    /** Si alguna entrada de catálogo de este tipo ya tiene {@code name} (sin distinguir mayúsculas/minúsculas) para {@code locale}. */
-    boolean existsByLocaleAndNameIgnoreCase(CatalogType type, String locale, String name);
-
-    /** Igual que {@link #existsByLocaleAndNameIgnoreCase}, ignorando la entrada que se está actualizando ({@code excludeId}). */
-    boolean existsByLocaleAndNameIgnoreCaseAndIdNot(CatalogType type, String locale, String name, Long excludeId);
+    /**
+     * Si alguna entrada de este tipo ya tiene {@code name} (sin distinguir mayúsculas/minúsculas) para
+     * {@code locale}, sin contar la entrada {@code excludeId} (la que se actualiza; {@code null} al crear).
+     */
+    boolean existsByLocaleAndName(CatalogType type, String locale, String name, @Nullable Long excludeId);
 
     /**
      * Nombres de los campos adicionales propios de {@code type} (las columnas declaradas en
-     * su entidad, p. ej. {@code "website"} solo para {@code brand}) — además de {@code name}/{@code description}/
+     * su entidad, p. ej. {@code "regionCode"} solo para {@code province}) — además de {@code name}/{@code description}/
      * {@code weight}, también son valores válidos de {@code sortBy} para {@link #findAll}.
      * Expuesto aquí (y no como una constante fija en el dominio) porque qué campos extra
      * tiene cada tipo es conocimiento de configuración/persistencia, no de negocio.

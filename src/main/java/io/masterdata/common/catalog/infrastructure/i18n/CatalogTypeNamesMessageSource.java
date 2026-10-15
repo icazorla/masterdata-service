@@ -19,7 +19,7 @@ import java.util.Map;
  * Boot: una clave {@code catalog.type.<code>} en {@code messages_*.properties} sigue
  * teniendo prioridad. Resolución por idioma: etiqueta exacta (p. ej. {@code es-MX}),
  * luego solo el idioma ({@code es}); si no hay ninguna, devuelve {@code null} y
- * {@code CatalogType#getDefaultMessage()} aporta el código capitalizado ({@code Brand}).
+ * {@code CatalogType#getDefaultMessage()} aporta el código capitalizado ({@code Province}).
  */
 public class CatalogTypeNamesMessageSource extends AbstractMessageSource {
 

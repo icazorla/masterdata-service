@@ -29,7 +29,7 @@ import java.util.Locale;
 @RestController
 @RequestMapping("/admin/api/catalogs")
 @RequiredArgsConstructor
-@Tag(name = "Catalogs (gestión)", description = "Gestión (CRUD) de catálogos de datos maestros (marcas, categorías, ...), con todas las traducciones")
+@Tag(name = "Catalogs (gestión)", description = "Gestión (CRUD) de catálogos de datos maestros (comunidades autónomas, provincias, ...), con todas las traducciones")
 public class CatalogTypeController {
 
     private final CatalogQueryService queryService;
@@ -41,7 +41,7 @@ public class CatalogTypeController {
             description = "Devuelve todos los tipos de catálogo configurados (app.catalog.types, en el orden de "
                     + "application.yml) con su nombre traducido según Accept-Language y la definición de los "
                     + "campos de sus entradas: primero los comunes a todo catálogo (id, name, description, weight, "
-                    + "createdAt, updatedAt) y después los adicionales propios del tipo (p. ej. website para brand). "
+                    + "createdAt, updatedAt) y después los adicionales propios del tipo (p. ej. regionCode para province). "
                     + "Pensado para que el backoffice construya formularios/listados genéricos sin conocer los tipos "
                     + "de antemano.")
     @ApiResponse(responseCode = "200", description = "Listado obtenido correctamente")

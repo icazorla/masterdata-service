@@ -25,14 +25,12 @@ import java.util.Set;
 /**
  * Única implementación de {@link CatalogRepository} para todos los {@link CatalogType},
  * construida directamente sobre {@link EntityManager} en vez de un repositorio Spring
- * Data + un mapeador de entidad MapStruct + una subclase adaptadora por cada tipo
- * (lo que esto reemplaza).
+ * Data por cada tipo.
  *
  * <p>{@link #descriptors} (ver {@code CatalogPersistenceConfig}) es lo único aquí que
  * varía según el tipo — un token {@link Class}, no comportamiento. Todos los
- * métodos de abajo operan sobre una entidad únicamente a través del contrato
- * estructural {@link CatalogEntity} (ya satisfecho por {@code BrandEntity}/
- * {@code CategoryEntity} mediante sus accesores generados por Lombok) y de
+ * métodos de abajo operan sobre una entidad únicamente a través de su superclase
+ * común {@link CatalogBaseEntity} y de
  * {@link CatalogTranslationValue}, común a todos los tipos, despachando a un método
  * auxiliar privado genérico mediante la captura de comodines de Java: cada método
  * público busca el {@code CatalogTypeDescriptor<?>} del tipo y lo pasa directamente
@@ -71,17 +69,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
     }
 
     @Override
-    public boolean existsById(CatalogType type, Long id) {
-        return existsByIdGeneric(descriptorFor(type), id);
-    }
-
-    @Override
-    public boolean existsByLocaleAndNameIgnoreCase(CatalogType type, String locale, String name) {
-        return existsByNameGeneric(descriptorFor(type), locale, name, null);
-    }
-
-    @Override
-    public boolean existsByLocaleAndNameIgnoreCaseAndIdNot(CatalogType type, String locale, String name, Long excludeId) {
+    public boolean existsByLocaleAndName(CatalogType type, String locale, String name, Long excludeId) {
         return existsByNameGeneric(descriptorFor(type), locale, name, excludeId);
     }
 
@@ -119,19 +107,13 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
         return descriptor;
     }
 
-    private <E extends CatalogEntity> Optional<Catalog> findByIdGeneric(
+    private <E extends CatalogBaseEntity> Optional<Catalog> findByIdGeneric(
             CatalogTypeDescriptor<E> d, Long id) {
         E entity = em.find(d.entityClass(), id);
         return Optional.ofNullable(entity).map(e -> toDomain(d, e));
     }
 
-    private <E extends CatalogEntity> boolean existsByIdGeneric(
-            CatalogTypeDescriptor<E> d, Long id) {
-        String jpql = "select count(e) from " + d.entityClass().getSimpleName() + " e where e.id = :id";
-        return em.createQuery(jpql, Long.class).setParameter("id", id).getSingleResult() > 0;
-    }
-
-    private <E extends CatalogEntity> boolean existsByNameGeneric(
+    private <E extends CatalogBaseEntity> boolean existsByNameGeneric(
             CatalogTypeDescriptor<E> d, String locale, String name, Long excludeId) {
         String jpql = "select count(e) from " + d.entityClass().getSimpleName() + " e join e.translations t "
                 + "where upper(t.locale) = upper(:locale) and upper(t.name) = upper(:name)"
@@ -156,7 +138,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
      * le muestra a este cliente. Así el resultado siempre coincide con lo que ve el
      * cliente, incluso cuando esta entrada no tiene traducción propia para su locale.
      * {@code weight} y los campos adicionales propios del tipo ({@code extraFields}, p. ej.
-     * {@code website} para {@code brand}) en cambio viven en la entidad padre, no en la
+     * {@code regionCode} para {@code province}) en cambio viven en la entidad padre, no en la
      * traducción — no se traducen por locale — así que su expresión de orden es simplemente
      * {@code e.<campo>}, sin {@code coalesce} ni depender de qué traducción se resolvió (ver
      * {@link #orderByExpression}). Sin paginación — ver {@link #findPageGeneric} para la
@@ -165,7 +147,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
      *
      * <p>{@code weight} manda siempre como primer criterio de orden, descendente, antes que
      * {@code sortBy} — ver {@link #orderByClauses}. Esto es deliberado: {@code weight} es un
-     * peso de ordenación manual (p. ej. destacar una marca), así que una entrada con peso
+     * peso de ordenación manual (p. ej. destacar una entrada), así que una entrada con peso
      * alto aparece siempre por delante sin importar por qué campo o dirección se ordene el
      * resto; {@code sortBy}/{@code sortDirection} solo deciden el desempate entre entradas
      * del mismo peso.
@@ -185,7 +167,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
      * entradas con el mismo valor de {@code weight}/{@code sortBy} podrían repetirse o
      * perderse entre páginas), e inocuo sin paginar.
      */
-    private <E extends CatalogEntity> List<Catalog> findAllGeneric(
+    private <E extends CatalogBaseEntity> List<Catalog> findAllGeneric(
             CatalogTypeDescriptor<E> d, String locale, CatalogSearchCriteria criteria, String sortBy, String sortDirection) {
         return selectQuery(d, locale, criteria, sortBy, sortDirection)
                 .getResultList().stream().map(e -> toDomain(d, e)).toList();
@@ -200,7 +182,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
      * ya es el total. Un offset que no cabe en un {@code int} (página absurdamente alta)
      * queda necesariamente fuera de rango: página vacía, sin lanzar la consulta de datos.
      */
-    private <E extends CatalogEntity> PageResult<Catalog> findPageGeneric(
+    private <E extends CatalogBaseEntity> PageResult<Catalog> findPageGeneric(
             CatalogTypeDescriptor<E> d, String locale, CatalogSearchCriteria criteria, Paging paging) {
         long offset = (long) paging.page() * paging.size();
         List<Catalog> content = offset > Integer.MAX_VALUE
@@ -222,7 +204,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
         return new PageResult<>(content, paging.page(), paging.size(), total, totalPages);
     }
 
-    private <E extends CatalogEntity> TypedQuery<E> selectQuery(
+    private <E extends CatalogBaseEntity> TypedQuery<E> selectQuery(
             CatalogTypeDescriptor<E> d, String locale, CatalogSearchCriteria criteria, String sortBy, String sortDirection) {
         String jpql = "select e " + fromWhereClause(d, criteria)
                 + " order by " + orderByClauses(sortBy, sortDirection, d.extraFields())
@@ -363,8 +345,8 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
      * {@code extraFields} es la lista de {@link CatalogTypeDescriptor#extraFields()} del tipo
      * que se está consultando — {@code sortBy} solo cae en la rama {@code default} para
      * {@code name}/{@code description}/{@code weight}, así que aquí basta con comprobar que
-     * nombre uno de los campos extra de ESTE tipo (p. ej. {@code website} es
-     * válido para {@code brand} pero no para {@code category}) antes de aceptarlo como
+     * nombre uno de los campos extra de ESTE tipo (p. ej. {@code regionCode} es
+     * válido para {@code province} pero no para {@code region}) antes de aceptarlo como
      * columna — sin este chequeo, un {@code sortBy} arbitrario que no fuera ninguno de los
      * tres fijos ni un extra conocido acabaría concatenado igualmente en el JPQL.
      */
@@ -399,7 +381,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
      * así que reutilizar un mismo {@code (locale, name)} nunca choca con la restricción de
      * unicidad de ese par.
      */
-    private <E extends CatalogEntity> Catalog saveGeneric(
+    private <E extends CatalogBaseEntity> Catalog saveGeneric(
             CatalogTypeDescriptor<E> d, Catalog catalog) {
         E entity;
         if (catalog.getId() == null) {
@@ -411,7 +393,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
         return toDomain(d, entity);
     }
 
-    private <E extends CatalogEntity> E createEntity(
+    private <E extends CatalogBaseEntity> E createEntity(
             CatalogTypeDescriptor<E> d, Catalog catalog) {
         E entity = newInstance(d.entityClass());
         entity.setWeight(catalog.getWeight());
@@ -421,7 +403,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
         return entity;
     }
 
-    private <E extends CatalogEntity> E mergeIntoExisting(
+    private <E extends CatalogBaseEntity> E mergeIntoExisting(
             CatalogTypeDescriptor<E> d, Catalog catalog) {
         E existing = em.find(d.entityClass(), catalog.getId());
         if (existing == null) {
@@ -443,7 +425,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
                 .toList();
     }
 
-    private <E extends CatalogEntity> Catalog toDomain(
+    private <E extends CatalogBaseEntity> Catalog toDomain(
             CatalogTypeDescriptor<E> d, E entity) {
         return Catalog.builder()
                 .id(entity.getId())

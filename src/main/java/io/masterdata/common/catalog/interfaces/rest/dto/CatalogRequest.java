@@ -32,7 +32,7 @@ import java.util.Map;
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
 @Builder
 @ValidCatalogTranslations
-@Schema(description = "Payload de creación/actualización de una entrada de catálogo (marca, categoría, ...)")
+@Schema(description = "Payload de creación/actualización de una entrada de catálogo (comunidad autónoma, provincia, ...)")
 public class CatalogRequest {
 
     @Builder.Default
@@ -50,8 +50,8 @@ public class CatalogRequest {
     private Map<String, @Valid CatalogTranslationRequest> translations;
 
     /**
-     * Campos adicionales propios de {@code type} (p. ej. {@code website} solo para
-     * {@code brand}: las columnas propias de su entidad), viajando en el JSON como atributos normales de primer
+     * Campos adicionales propios de {@code type} (p. ej. {@code regionCode} solo para
+     * {@code province}: las columnas propias de su entidad), viajando en el JSON como atributos normales de primer
      * nivel (no anidados bajo una clave {@code "extraFields"}) gracias a
      * {@link JsonAnyGetter}/{@link JsonAnySetter}. Se sobrescriben por completo en cada
      * escritura, igual que {@code translations} — omitir uno existente lo borra.

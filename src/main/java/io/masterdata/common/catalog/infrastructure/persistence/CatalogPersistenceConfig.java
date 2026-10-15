@@ -21,8 +21,7 @@ import java.util.stream.Collectors;
 /**
  * Construye el registro {@code CatalogType -> CatalogTypeDescriptor} sobre el que
  * despacha {@link CatalogRepositoryAdapter}, a partir de {@link CatalogProperties}
- * ({@code app.catalog.types.*} en {@code application.yml}) en lugar de un mapa Java
- * de literales {@code Class} escrito a mano. Añadir un nuevo tipo de catálogo pasa a
+ * ({@code app.catalog.types.*} en {@code application.yml}). Añadir un nuevo tipo de catálogo pasa a
  * ser puramente un cambio de configuración + una nueva clase {@code @Entity} — sin
  * ninguna clase Java aquí que tocar. También vuelca esas mismas claves en
  * {@link CatalogType#configure}, de modo que {@link CatalogType#of}/
@@ -31,9 +30,7 @@ import java.util.stream.Collectors;
  * <p>La contrapartida: {@code entity-class} es una
  * simple cadena resueltas mediante {@link Class#forName}, por lo que un error
  * tipográfico solo aparece como un fallo de arranque ({@link IllegalStateException})
- * en vez de un error de compilación — a diferencia de la versión anterior con
- * {@code Map.of(...)} escrito a mano, donde {@code BrandEntity.class} no podía
- * apuntar mal a una clase inexistente. {@link #toDescriptor} hace un único cast
+ * en vez de un error de compilación. {@link #toDescriptor} hace un único cast
  * sin comprobar, acotado, por cada entrada, para restaurar el tipo {@code <E>} que
  * {@link Class#forName} necesariamente pierde.
  *
@@ -64,7 +61,7 @@ public class CatalogPersistenceConfig {
     }
 
     @SuppressWarnings("unchecked")
-    private <E extends CatalogEntity> CatalogTypeDescriptor<E> toDescriptor(
+    private <E extends CatalogBaseEntity> CatalogTypeDescriptor<E> toDescriptor(
             CatalogType type, CatalogProperties.TypeEntry entry, Metamodel metamodel) {
         Class<E> entityClass = (Class<E>) loadClass(entry.getEntityClass());
         List<String> extraFields = discoverExtraFields(metamodel, entityClass);

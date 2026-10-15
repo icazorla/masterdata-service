@@ -198,14 +198,6 @@ class CatalogQueryServiceTest {
                 .containsExactlyInAnyOrderElementsOf(CatalogQueryService.ALLOWED_SORT_FIELDS);
     }
 
-    @Test
-    @DisplayName("existsById delega en el repositorio con el tipo")
-    void existsById_delegatesToRepository() {
-        when(repository.existsById(REGION, 1L)).thenReturn(true);
-
-        assertThat(service.existsById(REGION, 1L)).isTrue();
-    }
-
     private static CatalogSearchCriteria filter(String field, CatalogFilter.Operator operator, String... values) {
         return new CatalogSearchCriteria(List.of(new CatalogFilter(field, operator, List.of(values))));
     }

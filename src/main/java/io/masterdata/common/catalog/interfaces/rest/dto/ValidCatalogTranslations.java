@@ -15,7 +15,7 @@ import java.lang.annotation.Target;
  * como fallback. No hace falta comprobar "idioma duplicado": {@code translations}
  * es un {@code Map<locale, ...>}, así que una clave repetida es estructuralmente
  * imposible. Ver {@link CatalogTranslationsValidator} para el conjunto real
- * (escrito a mano) de idiomas — compartido por todos los tipos de catálogo, ya
+ * de idiomas (de {@code application.yml}) — compartido por todos los tipos de catálogo, ya
  * que ninguno declara sus propios idiomas soportados.
  */
 @Target(ElementType.TYPE)

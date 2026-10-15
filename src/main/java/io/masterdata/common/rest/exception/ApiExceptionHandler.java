@@ -2,13 +2,14 @@ package io.masterdata.common.rest.exception;
 
 import io.masterdata.common.domain.exception.DuplicateResourceException;
 import io.masterdata.common.domain.exception.InvalidQueryException;
+import io.masterdata.common.domain.exception.LocalizedException;
 import io.masterdata.common.domain.exception.NotFoundException;
+import io.masterdata.common.rest.patch.JsonPatchException;
+import io.masterdata.common.rest.patch.JsonPatchTestFailedException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -22,30 +23,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Manejador global de excepciones REST, compartido por todas las features (product,
- * category, brand, ...). {@link NotFoundException}/{@link DuplicateResourceException}/
- * {@link InvalidQueryException} son tipos base que la excepción de dominio propia de
- * cada agregado extiende (p. ej. {@code ProductNotFoundException}, {@code CategoryNotFoundException},
- * {@code InvalidProductQueryException}), de forma que una feature nueva obtiene el
- * mapeo 404/409/422 gratis sin necesidad de un nuevo método manejador aquí.
+ * Manejador global de excepciones REST. {@link NotFoundException}/{@link DuplicateResourceException}/
+ * {@link InvalidQueryException} son tipos base que extiende cada excepción de dominio
+ * (p. ej. {@code CatalogNotFoundException}), de forma que una excepción nueva obtiene el
+ * mapeo 404/409/422 gratis sin necesidad de un nuevo método manejador aquí. También traduce
+ * los errores de JSON Patch (RFC 6902): {@link JsonPatchException} → 400 y
+ * {@link JsonPatchTestFailedException} → 409.
  *
- * <p>{@code @Order(LOWEST_PRECEDENCE)}: Spring no ordena la especificidad de
- * {@code @ExceptionHandler} <em>entre</em> distintos beans {@code @ControllerAdvice} —
- * para una excepción dada elige el primer bean de advice (en orden) que tenga algún
- * manejador que coincida, incluso si un bean de advice posterior (p. ej.
- * {@code JsonPatchExceptionHandler}) declara uno más específico. Como el
- * {@link #handleGeneric} de esta clase coincide con cualquier {@link Exception}, debe
- * ordenarse siempre el último, o se tragaría silenciosamente excepciones destinadas
- * a otros advices.
+ * <p>Es el único {@code @ControllerAdvice}: dentro de un mismo advice Spring elige siempre el
+ * manejador más específico, así que {@link #handleGeneric} solo recoge lo que no tenga otro.
  */
 @RestControllerAdvice
-@Order(Ordered.LOWEST_PRECEDENCE)
 @Slf4j
 @RequiredArgsConstructor
 public class ApiExceptionHandler {
@@ -54,14 +49,12 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(NotFoundException ex, Locale locale) {
-        log.warn(ex.getMessage());
-        return build(HttpStatus.NOT_FOUND, resolve(ex.getMessageKey(), ex.getArgs(), ex.getMessage(), locale), List.of());
+        return localized(HttpStatus.NOT_FOUND, ex, locale);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<Map<String, Object>> handleDuplicate(DuplicateResourceException ex, Locale locale) {
-        log.warn(ex.getMessage());
-        return build(HttpStatus.CONFLICT, resolve(ex.getMessageKey(), ex.getArgs(), ex.getMessage(), locale), List.of());
+        return localized(HttpStatus.CONFLICT, ex, locale);
     }
 
     /**
@@ -71,15 +64,24 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(InvalidQueryException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidQuery(InvalidQueryException ex, Locale locale) {
-        log.warn(ex.getMessage());
-        return build(HttpStatus.UNPROCESSABLE_ENTITY, resolve(ex.getMessageKey(), ex.getArgs(), ex.getMessage(), locale), List.of());
+        return localized(HttpStatus.UNPROCESSABLE_ENTITY, ex, locale);
+    }
+
+    /** La operación {@code test} de un JSON Patch no coincide: la precondición del cliente ya no se cumple. */
+    @ExceptionHandler(JsonPatchTestFailedException.class)
+    public ResponseEntity<Map<String, Object>> handleJsonPatchTestFailed(JsonPatchTestFailedException ex, Locale locale) {
+        return localized(HttpStatus.CONFLICT, ex, locale);
+    }
+
+    @ExceptionHandler(JsonPatchException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidJsonPatch(JsonPatchException ex, Locale locale) {
+        return localized(HttpStatus.BAD_REQUEST, ex, locale);
     }
 
     /**
-     * Una fila no se puede eliminar porque otra tabla todavía la referencia mediante
-     * una clave foránea (p. ej. al eliminar una {@code Category}/{@code Brand} a la
-     * que todavía apuntan productos), o una condición de carrera hizo perder una
-     * comprobación de restricción única realizada antes en la petición. Lo expone
+     * La base de datos rechaza la escritura por una restricción: p. ej. dos peticiones
+     * concurrentes pasan a la vez la comprobación de nombre único y la segunda choca con la
+     * restricción {@code (locale, name)} de la tabla de traducciones. Lo expone
      * la base de datos y lo envuelve Spring Data como esta excepción.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -179,8 +181,23 @@ public class ApiExceptionHandler {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, messageSource.getMessage("error.internalServerError", null, locale), List.of());
     }
 
-    private String resolve(String messageKey, Object[] args, String fallback, Locale locale) {
-        return messageSource.getMessage(messageKey, args, fallback, locale);
+    private ResponseEntity<Map<String, Object>> localized(HttpStatus status, LocalizedException ex, Locale locale) {
+        log.warn(ex.getMessage());
+        return build(status, resolve(ex, locale), List.of());
+    }
+
+    /**
+     * Si {@code ex} envuelve otra {@link LocalizedException} (p. ej. {@code JsonPatch} añade el
+     * contexto "Operation N" a la excepción de la operación), la interna se resuelve primero y
+     * se pasa como el último placeholder de la clave del envoltorio.
+     */
+    private String resolve(LocalizedException ex, Locale locale) {
+        Object[] args = ex.getArgs();
+        if (ex.getCause() instanceof LocalizedException inner) {
+            args = Arrays.copyOf(args, args.length + 1);
+            args[args.length - 1] = resolve(inner, locale);
+        }
+        return messageSource.getMessage(ex.getMessageKey(), args, ex.getMessage(), locale);
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message, List<String> errors) {

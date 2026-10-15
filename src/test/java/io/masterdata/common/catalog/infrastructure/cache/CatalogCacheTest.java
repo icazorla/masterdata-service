@@ -15,7 +15,6 @@ import io.masterdata.common.catalog.domain.port.UpdateCatalogCommand;
 import io.masterdata.common.catalog.domain.service.CatalogCacheNames;
 import io.masterdata.common.catalog.domain.service.CatalogCommandService;
 import io.masterdata.common.catalog.domain.service.CatalogQueryService;
-import io.masterdata.common.catalog.infrastructure.persistence.CatalogMapperAdapter;
 import io.masterdata.common.domain.Paging;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,8 +56,7 @@ import static org.mockito.Mockito.when;
  * en sus propios tests (p. ej. {@code CaffeineCatalogCacheProviderTest}), la herencia de la
  * configuración en {@link CatalogCacheSettingsTest} y la desactivación en {@link CatalogCacheDisabledTest}.
  */
-@SpringJUnitConfig({CatalogCacheConfig.class, CatalogQueryService.class, CatalogCommandService.class,
-        CatalogMapperAdapter.class, CatalogCacheTest.TxConfig.class})
+@SpringJUnitConfig({CatalogCacheConfig.class, CatalogQueryService.class, CatalogCommandService.class, CatalogCacheTest.TxConfig.class})
 @TestPropertySource(properties = {
         "app.catalog.cache.maximum-size=100",
         "app.catalog.types.region.cache.maximum-size=50",
@@ -100,7 +98,6 @@ class CatalogCacheTest {
         cacheManager.getCacheNames().forEach(name -> cacheManager.getCache(name).clear());
         when(repository.findById(REGION, 1L)).thenReturn(Optional.of(logitech));
         when(repository.findById(PROVINCE, 1L)).thenReturn(Optional.of(peripherals));
-        when(repository.existsById(REGION, 1L)).thenReturn(true);
         when(repository.findAll(any(), any(), any(), any(), any())).thenReturn(List.of(logitech));
         when(repository.sortableExtraFields(any())).thenReturn(Set.of());
         when(repository.extraFieldTypes(any())).thenReturn(Map.of());

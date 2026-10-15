@@ -14,14 +14,14 @@ import io.masterdata.common.catalog.domain.port.UpdateCatalogCommand;
 import io.masterdata.common.catalog.domain.service.CatalogCommandService;
 import io.masterdata.common.catalog.domain.service.CatalogQueryService;
 import io.masterdata.common.catalog.infrastructure.i18n.CatalogI18nConfig;
-import io.masterdata.common.catalog.infrastructure.rest.CatalogRestMapperAdapter;
+import io.masterdata.common.catalog.interfaces.rest.mapper.CatalogRestMapper;
 import io.masterdata.common.catalog.interfaces.rest.CatalogTypePathConverter;
 import io.masterdata.common.catalog.interfaces.rest.dto.CatalogRequest;
 import io.masterdata.common.catalog.interfaces.rest.dto.CatalogTranslationRequest;
 import io.masterdata.common.domain.PageResult;
 import io.masterdata.common.domain.Paging;
 import io.masterdata.common.rest.exception.ApiExceptionHandler;
-import io.masterdata.common.rest.exception.JsonPatchExceptionHandler;
+
 import io.masterdata.common.rest.exception.SecurityErrorHandler;
 import io.masterdata.common.rest.patch.JsonPatchApplier;
 import io.masterdata.config.security.SecurityConfig;
@@ -70,7 +70,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * con rol {@code ADMIN} salvo los de seguridad ({@code security_*}), que lo sobrescriben.
  */
 @WebMvcTest(CatalogAdminController.class)
-@Import({ApiExceptionHandler.class, JsonPatchExceptionHandler.class, CatalogRestMapperAdapter.class,
+@Import({ApiExceptionHandler.class, CatalogRestMapper.class,
         JsonPatchApplier.class, CatalogTypePathConverter.class, CatalogI18nConfig.class,
         SecurityConfig.class, SecurityErrorHandler.class})
 @WithMockUser(roles = SecurityConfig.ADMIN)

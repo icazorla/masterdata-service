@@ -7,12 +7,12 @@ import java.util.Map;
 
 /**
  * Objeto de comando que representa la intención de crear una nueva entrada de
- * catálogo de un {@link CatalogType} dado (marca, categoría, ...).
+ * catálogo de un {@link CatalogType} dado (comunidad autónoma, provincia, ...).
  * Forma parte del puerto de entrada del dominio — independiente de cualquier
  * DTO de transporte.
  *
- * <p>{@code extraFields} lleva los campos propios de {@code type} (p. ej. {@code website}
- * solo para {@code brand}), indexados por nombre — ver el javadoc de {@code Catalog}.
+ * <p>{@code extraFields} lleva los campos propios de {@code type} (p. ej. {@code regionCode}
+ * solo para {@code province}), indexados por nombre — ver el javadoc de {@code Catalog}.
  */
 public record CreateCatalogCommand(
         CatalogType type,

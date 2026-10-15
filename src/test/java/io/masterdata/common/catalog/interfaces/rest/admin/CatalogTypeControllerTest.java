@@ -5,7 +5,7 @@ import io.masterdata.common.catalog.domain.CatalogTypeDefinition;
 import io.masterdata.common.catalog.domain.TestCatalogTypes;
 import io.masterdata.common.catalog.domain.service.CatalogQueryService;
 import io.masterdata.common.catalog.infrastructure.i18n.CatalogI18nConfig;
-import io.masterdata.common.catalog.infrastructure.rest.CatalogRestMapperAdapter;
+import io.masterdata.common.catalog.interfaces.rest.mapper.CatalogRestMapper;
 import io.masterdata.common.rest.exception.ApiExceptionHandler;
 import io.masterdata.common.rest.exception.SecurityErrorHandler;
 import io.masterdata.config.security.SecurityConfig;
@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(CatalogTypeController.class)
-@Import({ApiExceptionHandler.class, CatalogRestMapperAdapter.class, CatalogI18nConfig.class,
+@Import({ApiExceptionHandler.class, CatalogRestMapper.class, CatalogI18nConfig.class,
         SecurityConfig.class, SecurityErrorHandler.class})
 @WithMockUser(roles = SecurityConfig.ADMIN)
 class CatalogTypeControllerTest {

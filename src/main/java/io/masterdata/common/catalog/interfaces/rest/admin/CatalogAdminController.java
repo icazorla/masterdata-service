@@ -6,6 +6,7 @@ import io.masterdata.common.catalog.domain.port.CatalogSearchCriteria;
 import io.masterdata.common.catalog.domain.port.CatalogFilter;
 import io.masterdata.common.catalog.domain.service.CatalogCommandService;
 import io.masterdata.common.catalog.domain.service.CatalogQueryService;
+import io.masterdata.common.catalog.interfaces.rest.CatalogApiDocs;
 import io.masterdata.common.catalog.interfaces.rest.CatalogTypePathConverter;
 import io.masterdata.common.catalog.interfaces.rest.dto.CatalogAdminResponse;
 import io.masterdata.common.catalog.interfaces.rest.dto.CatalogRequest;
@@ -61,7 +62,7 @@ import java.util.Locale;
 @RequestMapping("/admin/api/catalogs/{type}")
 @RequiredArgsConstructor
 @Validated
-@Tag(name = "Catalogs (gestión)", description = "Gestión (CRUD) de catálogos de datos maestros (marcas, categorías, ...), con todas las traducciones")
+@Tag(name = "Catalogs (gestión)", description = "Gestión (CRUD) de catálogos de datos maestros (comunidades autónomas, provincias, ...), con todas las traducciones")
 public class CatalogAdminController {
 
     private final CatalogQueryService queryService;
@@ -75,7 +76,7 @@ public class CatalogAdminController {
                     + "idiomas e incluye también las entradas desactivadas. A diferencia de la API de consulta, "
                     + "pagina por defecto (paged=true): el cuerpo es la lista sin envolver y los metadatos van en "
                     + "las cabeceras X-Total-Count, X-Page-Number, X-Page-Size y X-Total-Pages. Con paged=false "
-                    + "devuelve todas las coincidencias sin esas cabeceras. Sintaxis de filter: condiciones campo:valor separadas por ; y combinadas todas con AND, p. ej. name:logi;website:acme,beta;price.gte:10. Varios valores separados por , significan «cualquiera de ellos» (texto: contiene alguno, sin distinguir mayúsculas; otros tipos: IN). Números y fechas (ISO-8601) admiten rangos con sufijo: campo.gt, campo.gte, campo.lt, campo.lte (un único valor). \\; \\, y \\\\ son ; , y \\ literales; los : dentro del valor no necesitan escaparse. name/description se evalúan sobre el texto en el idioma de Accept-Language (con fallback al idioma por defecto). Campos filtrables: name, description, enabled (true/false) y los adicionales del type (ver filterOperators en GET /admin/api/catalog-types).")
+                    + "devuelve todas las coincidencias sin esas cabeceras. " + CatalogApiDocs.FILTER_SYNTAX + ", enabled (true/false) y los adicionales del type (ver filterOperators en GET /admin/api/catalogs).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Listado obtenido correctamente. Las cabeceras de página solo se envían con paged=true.",
                     headers = {
@@ -85,11 +86,11 @@ public class CatalogAdminController {
                             @io.swagger.v3.oas.annotations.headers.Header(name = "X-Total-Pages", description = "Total de páginas (solo con paged=true)", schema = @Schema(type = "integer"))
                     }),
             @ApiResponse(responseCode = "400", description = "sortDirection no es ASC ni DESC, o page/size fuera de rango", content = @Content),
-            @ApiResponse(responseCode = "422", description = "sortBy no es un campo ordenable de catálogo (name, description, weight, o un campo adicional de este type), o filter está mal formado, nombra un campo no filtrable para este type, usa un operador no válido para su tipo o trae un valor que no encaja con él", content = @Content)
+            @ApiResponse(responseCode = "422", description = CatalogApiDocs.INVALID_QUERY, content = @Content)
     })
     public ResponseEntity<List<CatalogAdminResponse>> findAll(
             @Parameter(description = "Tipo de catálogo") @PathVariable CatalogType type,
-            @Parameter(description = "Condiciones de filtrado campo:valor separadas por ; (AND). Ver la descripción de la operación.", example = "name:logi;enabled:false;website:.com")
+            @Parameter(description = "Condiciones de filtrado campo:valor separadas por ; (AND). Ver la descripción de la operación.", example = "name:sev;enabled:false;regionCode:1")
             @RequestParam(required = false) String filter,
             @Parameter(description = "Campo de ordenación: name, description, weight, o un campo adicional propio de este type. 422 si no es válido para este type.")
             @RequestParam(defaultValue = "name") String sortBy,
@@ -128,7 +129,7 @@ public class CatalogAdminController {
     @PostMapping
     @Operation(summary = "Crear una entrada de catálogo",
             description = "Además de weight/translations, el payload admite cualquier campo adicional propio de "
-                    + "este type (p. ej. website para brand: las columnas propias de su entidad) "
+                    + "este type (p. ej. regionCode para province: las columnas propias de su entidad) "
                     + "como atributo normal de primer nivel; se devuelve igual, aplanado, en la "
                     + "respuesta.")
     @ApiResponses({

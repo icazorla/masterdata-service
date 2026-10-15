@@ -15,7 +15,7 @@ import java.util.Set;
 
 /**
  * Traduce el nombre base de cada anotación de caché de catálogo ({@link CatalogCacheNames#BY_ID},
- * {@link CatalogCacheNames#LISTS}) a la caché del tipo de la llamada ({@code catalogById:brand}…),
+ * {@link CatalogCacheNames#LISTS}) a la caché del tipo de la llamada ({@code catalogById:province}…),
  * tomando el {@link CatalogType} de los argumentos del método: un parámetro {@code CatalogType}
  * ({@code findById}, {@code findAll}, {@code update}, {@code delete}) o el {@code type()} de un
  * {@link CreateCatalogCommand} ({@code create}). Los nombres que no son por tipo
@@ -34,7 +34,7 @@ public class CatalogCacheResolver implements CacheResolver {
     private final CacheManager cacheManager;
     private final Set<String> disabledCaches;
 
-    /** {@code disabledCaches}: nombres reales (p. ej. {@code catalogById:category}) de las cachés desactivadas. */
+    /** {@code disabledCaches}: nombres reales (p. ej. {@code catalogById:region}) de las cachés desactivadas. */
     public CatalogCacheResolver(CacheManager cacheManager, Set<String> disabledCaches) {
         this.cacheManager = cacheManager;
         this.disabledCaches = Set.copyOf(disabledCaches);
@@ -48,7 +48,7 @@ public class CatalogCacheResolver implements CacheResolver {
     }
 
     private Cache resolve(String baseName, CacheOperationInvocationContext<?> context) {
-        String name = PER_TYPE.contains(baseName) ? CatalogCacheNames.forType(baseName, typeOf(context)) : baseName;
+        String name = PER_TYPE.contains(baseName) ? CatalogCacheNames.forType(baseName, typeOf(context).code()) : baseName;
         if (disabledCaches.contains(name)) {
             return new NoOpCache(name);
         }

@@ -5,7 +5,7 @@ import org.springframework.cache.Cache;
 /**
  * Puerto entre la caché de catálogos y la librería de caché concreta (Caffeine, cache2k, Ehcache…).
  * Es lo <em>único</em> que conoce la librería: {@code CatalogCacheConfig} (montaje del
- * {@code CacheManager}), {@code CatalogCacheResolver}, {@code CatalogCachesEndpoint} y el dominio
+ * {@code CacheManager}), {@code CatalogCacheResolver} y el dominio
  * trabajan solo con la abstracción de Spring ({@link Cache}) y con {@link CacheSpec}.
  *
  * <p>Para añadir una librería: implementar esta interfaz en un subpaquete propio de
@@ -20,7 +20,7 @@ import org.springframework.cache.Cache;
  *       nunca ignorarse en silencio.</li>
  *   <li>Debe devolver la implementación de {@link Cache} estándar de Spring para esa librería
  *       (p. ej. {@code CaffeineCache}, {@code JCacheCache}), sin envolver: es la que Spring Boot sabe
- *       conectar a Micrometer, de donde {@code CatalogCachesEndpoint} saca las estadísticas.</li>
+ *       conectar a Micrometer ({@code /actuator/metrics/cache.*}).</li>
  *   <li>No debe admitir valores {@code null} (los métodos cacheados nunca devuelven {@code null}).</li>
  *   <li>Los valores se cachean por referencia (los {@code Catalog} son inmutables y no son
  *       {@code Serializable}): una librería que copie por valor — p. ej. JCache por defecto — debe

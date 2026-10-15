@@ -1,5 +1,6 @@
 package io.masterdata.common.catalog.infrastructure.persistence;
 
+import io.masterdata.common.catalog.domain.exception.InvalidCatalogQueryException;
 import lombok.Getter;
 import lombok.Setter;
 import org.junit.jupiter.api.DisplayName;
@@ -8,6 +9,9 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,6 +56,36 @@ class CatalogExtraFieldsAccessorTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> CatalogExtraFieldsAccessor.convert(SampleBean.class, "featured", "maybe"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("write convierte cada valor del payload al tipo de la propiedad")
+    void writeConvertsPayloadValues() {
+        SampleBean bean = new SampleBean();
+        Map<String, Object> values = new HashMap<>();
+        values.put("stock", "42");
+        values.put("price", 9.95);
+        values.put("featured", true);
+        values.put("launchDate", "2026-10-13");
+        values.put("label", null);
+
+        CatalogExtraFieldsAccessor.write(bean, List.of("stock", "price", "featured", "launchDate", "label"), values);
+
+        assertThat(bean.getStock()).isEqualTo(42);
+        assertThat(bean.getPrice()).isEqualByComparingTo("9.95");
+        assertThat(bean.getFeatured()).isTrue();
+        assertThat(bean.getLaunchDate()).isEqualTo(LocalDate.of(2026, 10, 13));
+        assertThat(bean.getLabel()).isNull();
+    }
+
+    @Test
+    @DisplayName("write rechaza con 422 un valor que no encaja con el tipo, en vez de truncarlo o dar 500")
+    void writeRejectsValuesThatDoNotMatchType() {
+        assertThatThrownBy(() -> CatalogExtraFieldsAccessor.write(new SampleBean(), List.of("stock"), Map.of("stock", "abc")))
+                .isInstanceOf(InvalidCatalogQueryException.class)
+                .hasMessageContaining("'stock'");
+        assertThatThrownBy(() -> CatalogExtraFieldsAccessor.write(new SampleBean(), List.of("stock"), Map.of("stock", 5.5)))
+                .isInstanceOf(InvalidCatalogQueryException.class);
     }
 
     @Test

@@ -77,10 +77,10 @@ public final class CatalogType implements MessageSourceResolvable {
 
     /**
      * Forma en minúsculas usada como segmento de la ruta REST (p. ej.
-     * {@code /api/catalogs/brand}), como segmento de la clave de mensaje i18n
-     * del nombre traducido (p. ej. {@code catalog.type.brand}), y — mediante {@link JsonValue} —
+     * {@code /api/catalogs/province}), como segmento de la clave de mensaje i18n
+     * del nombre traducido (p. ej. {@code catalog.type.province}), y — mediante {@link JsonValue} —
      * como representación JSON de este tipo (un string plano, p. ej.
-     * {@code "brand"}, en lugar de {@code {}}: sin un {@code enum} al que
+     * {@code "province"}, en lugar de {@code {}}: sin un {@code enum} al que
      * Jackson pueda recurrir y sin un {@code getCode()} al estilo JavaBean, de
      * otro modo no vería ninguna propiedad serializable en absoluto).
      */
@@ -89,12 +89,12 @@ public final class CatalogType implements MessageSourceResolvable {
         return code;
     }
 
-    /** {@link #code()}, capitalizado — usado en mensajes de excepción orientados al desarrollador (en inglés, de log/fallback), p. ej. {@code "Brand not found: id=1"}. */
+    /** {@link #code()}, capitalizado — usado en mensajes de excepción orientados al desarrollador (en inglés, de log/fallback), p. ej. {@code "Province not found: id=1"}. */
     public String label() {
         return Character.toUpperCase(code.charAt(0)) + code.substring(1);
     }
 
-    /** Clave i18n opcional con el nombre traducido del tipo, p. ej. {@code catalog.type.brand}. */
+    /** Clave i18n opcional con el nombre traducido del tipo, p. ej. {@code catalog.type.province}. */
     @Override
     public String[] getCodes() {
         return new String[]{"catalog.type." + code};

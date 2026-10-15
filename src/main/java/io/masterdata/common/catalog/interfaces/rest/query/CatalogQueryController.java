@@ -6,6 +6,7 @@ import io.masterdata.common.catalog.domain.exception.InvalidCatalogQueryExceptio
 import io.masterdata.common.catalog.domain.port.CatalogSearchCriteria;
 import io.masterdata.common.catalog.domain.port.CatalogFilter;
 import io.masterdata.common.catalog.domain.service.CatalogQueryService;
+import io.masterdata.common.catalog.interfaces.rest.CatalogApiDocs;
 import io.masterdata.common.catalog.interfaces.rest.CatalogTypePathConverter;
 import io.masterdata.common.catalog.interfaces.rest.dto.CatalogResponse;
 import io.masterdata.common.catalog.interfaces.rest.mapper.CatalogRestMapper;
@@ -43,14 +44,14 @@ import java.util.Locale;
  * la API de gestión ({@code /admin/api/catalogs/{type}}, ver {@code CatalogAdminController}).
  * El listado solo devuelve entradas activas ({@code enabled}); la consulta por id devuelve
  * también las desactivadas, porque otros datos pueden seguir referenciándolas.
- * {@code type} es un segmento de la ruta, p. ej. {@code /api/catalogs/brand}, resuelto sin
+ * {@code type} es un segmento de la ruta, p. ej. {@code /api/catalogs/province}, resuelto sin
  * distinguir mayúsculas/minúsculas por {@link CatalogTypePathConverter}.
  */
 @RestController
 @RequestMapping("/api/catalogs/{type}")
 @RequiredArgsConstructor
 @Validated
-@Tag(name = "Catalogs (consulta)", description = "Consulta de catálogos de datos maestros (marcas, categorías, ...), localizada según Accept-Language")
+@Tag(name = "Catalogs (consulta)", description = "Consulta de catálogos de datos maestros (comunidades autónomas, provincias, ...), localizada según Accept-Language")
 public class CatalogQueryController {
 
     private final CatalogQueryService queryService;
@@ -65,7 +66,7 @@ public class CatalogQueryController {
                     + "size; el cuerpo sigue siendo la lista sin envolver y los metadatos de página viajan en las "
                     + "cabeceras X-Total-Count, X-Page-Number, X-Page-Size y X-Total-Pages. El orden y el "
                     + "name/description de la respuesta se resuelven sobre la traducción de Accept-Language, con "
-                    + "fallback al idioma por defecto. Sintaxis de filter: condiciones campo:valor separadas por ; y combinadas todas con AND, p. ej. name:logi;website:acme,beta;price.gte:10. Varios valores separados por , significan «cualquiera de ellos» (texto: contiene alguno, sin distinguir mayúsculas; otros tipos: IN). Números y fechas (ISO-8601) admiten rangos con sufijo: campo.gt, campo.gte, campo.lt, campo.lte (un único valor). \\; \\, y \\\\ son ; , y \\ literales; los : dentro del valor no necesitan escaparse. name/description se evalúan sobre el texto en el idioma de Accept-Language (con fallback al idioma por defecto). Campos filtrables: name, description y los adicionales del type (ver filterOperators en GET /admin/api/catalog-types); enabled no se puede filtrar aquí.")
+                    + "fallback al idioma por defecto. " + CatalogApiDocs.FILTER_SYNTAX + " y los adicionales del type (ver filterOperators en GET /admin/api/catalogs); enabled no se puede filtrar aquí.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Listado obtenido correctamente. Las cabeceras de página solo se envían con paged=true.",
                     headers = {
@@ -75,13 +76,13 @@ public class CatalogQueryController {
                             @io.swagger.v3.oas.annotations.headers.Header(name = "X-Total-Pages", description = "Total de páginas (solo con paged=true)", schema = @Schema(type = "integer"))
                     }),
             @ApiResponse(responseCode = "400", description = "sortDirection no es ASC ni DESC, o page/size fuera de rango (se validan aunque paged=false)", content = @Content),
-            @ApiResponse(responseCode = "422", description = "sortBy no es un campo ordenable de catálogo (name, description, weight, o un campo adicional de este type), o filter está mal formado, nombra un campo no filtrable para este type, usa un operador no válido para su tipo o trae un valor que no encaja con él", content = @Content)
+            @ApiResponse(responseCode = "422", description = CatalogApiDocs.INVALID_QUERY, content = @Content)
     })
     public ResponseEntity<List<CatalogResponse>> findAll(
             @Parameter(description = "Tipo de catálogo") @PathVariable CatalogType type,
-            @Parameter(description = "Condiciones de filtrado campo:valor separadas por ; (AND). Ver la descripción de la operación.", example = "name:logi;website:.com")
+            @Parameter(description = "Condiciones de filtrado campo:valor separadas por ; (AND). Ver la descripción de la operación.", example = "name:sev;regionCode:1")
             @RequestParam(required = false) String filter,
-            @Parameter(description = "Campo de ordenación. Siempre válidos: name, description, weight; además, cualquier campo adicional propio de este type (p. ej. website para brand). Se valida como regla de negocio, no de formato — 422 si no es válido para este type.")
+            @Parameter(description = "Campo de ordenación. Siempre válidos: name, description, weight; además, cualquier campo adicional propio de este type (p. ej. regionCode para province). Se valida como regla de negocio, no de formato — 422 si no es válido para este type.")
             @RequestParam(defaultValue = "name") String sortBy,
             @Parameter(description = "Dirección de ordenación")
             @RequestParam(defaultValue = "ASC") SortDirection sortDirection,

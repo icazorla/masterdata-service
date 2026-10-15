@@ -111,40 +111,26 @@ class CatalogRepositoryAdapterTest {
         assertThat(adapter.findById(type, 999L)).isEmpty();
     }
 
-    @ParameterizedTest(name = "[{0}] existsByLocaleAndNameIgnoreCase detecta nombre existente sin distinguir mayúsculas")
+    @ParameterizedTest(name = "[{0}] existsByLocaleAndName detecta nombre existente sin distinguir mayúsculas")
     @MethodSource("catalogTypes")
-    void existsByLocaleAndNameIgnoreCase_true(CatalogType type) {
+    void existsByLocaleAndName_true(CatalogType type) {
         adapter.save(sample(type, "Logitech", "Peripheral manufacturer"));
 
-        assertThat(adapter.existsByLocaleAndNameIgnoreCase(type, "en", "logitech")).isTrue();
+        assertThat(adapter.existsByLocaleAndName(type, "en", "logitech", null)).isTrue();
     }
 
-    @ParameterizedTest(name = "[{0}] existsByLocaleAndNameIgnoreCase devuelve false cuando no existe")
+    @ParameterizedTest(name = "[{0}] existsByLocaleAndName devuelve false cuando no existe")
     @MethodSource("catalogTypes")
-    void existsByLocaleAndNameIgnoreCase_false(CatalogType type) {
-        assertThat(adapter.existsByLocaleAndNameIgnoreCase(type, "en", "no-existe")).isFalse();
+    void existsByLocaleAndName_false(CatalogType type) {
+        assertThat(adapter.existsByLocaleAndName(type, "en", "no-existe", null)).isFalse();
     }
 
-    @ParameterizedTest(name = "[{0}] existsByLocaleAndNameIgnoreCaseAndIdNot ignora la propia entrada")
+    @ParameterizedTest(name = "[{0}] existsByLocaleAndName ignora la propia entrada")
     @MethodSource("catalogTypes")
-    void existsByLocaleAndNameIgnoreCaseAndIdNot_excludesSelf(CatalogType type) {
+    void existsByLocaleAndName_excludesSelf(CatalogType type) {
         Catalog saved = adapter.save(sample(type, "Logitech", "Peripheral manufacturer"));
 
-        assertThat(adapter.existsByLocaleAndNameIgnoreCaseAndIdNot(type, "en", "Logitech", saved.getId())).isFalse();
-    }
-
-    @ParameterizedTest(name = "[{0}] existsById detecta id existente")
-    @MethodSource("catalogTypes")
-    void existsById_true(CatalogType type) {
-        Catalog saved = adapter.save(sample(type, "Logitech", "Peripheral manufacturer"));
-
-        assertThat(adapter.existsById(type, saved.getId())).isTrue();
-    }
-
-    @ParameterizedTest(name = "[{0}] existsById devuelve false cuando no existe")
-    @MethodSource("catalogTypes")
-    void existsById_false(CatalogType type) {
-        assertThat(adapter.existsById(type, 999L)).isFalse();
+        assertThat(adapter.existsByLocaleAndName(type, "en", "Logitech", saved.getId())).isFalse();
     }
 
     @ParameterizedTest(name = "[{0}] findAll devuelve todas las entradas ordenadas por nombre")

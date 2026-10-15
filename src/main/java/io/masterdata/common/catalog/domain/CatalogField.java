@@ -8,7 +8,7 @@ import java.util.List;
  * Definición (metadatos, no valor) de un campo de las entradas de un {@link CatalogType}:
  * su nombre en el JSON de la API, su tipo de dato, y cómo se comporta.
  *
- * @param name            nombre del atributo en el payload/respuesta (p. ej. {@code name}, {@code website})
+ * @param name            nombre del atributo en el payload/respuesta (p. ej. {@code name}, {@code regionCode})
  * @param dataType        tipo de dato JSON-friendly: {@code string}, {@code integer}, {@code number},
  *                        {@code boolean}, {@code date}, {@code date-time}
  * @param required        si debe venir informado al crear/actualizar

@@ -1,6 +1,5 @@
 package io.masterdata.common.catalog.domain;
 
-import io.masterdata.common.domain.Auditable;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
@@ -12,16 +11,14 @@ import java.util.Optional;
 
 /**
  * Agregado de datos maestros para cualquier catálogo de name+description
- * discriminado por {@link CatalogType} (marcas, categorías, ...). Se referencia
- * desde {@code io.masterdata.product.domain.Product} solo por id ({@code brandId}/
- * {@code categoryId}) — {@code Product} no mantiene una referencia a
- * {@code Catalog}, manteniendo los agregados independientes.
+ * discriminado por {@link CatalogType} (comunidades autónomas, provincias, ...). Otros datos lo
+ * referencian solo por id.
  *
  * <p>{@code name}/{@code description} se traducen por locale en lugar de ser
  * strings planos: un catálogo lleva un {@link CatalogTranslation} por cada
  * idioma soportado en vez de un único par de idioma fijo. {@code weight} en
  * cambio no se traduce — es un único entero que ordena manualmente las
- * entradas (p. ej. destacar una marca) independientemente del idioma.
+ * entradas (p. ej. destacar una entrada) independientemente del idioma.
  *
  * <p>{@code enabled} es un interruptor manual: una entrada desactivada deja de ofrecerse
  * en los listados de la API de consulta (los que pueblan selects) pero <em>no</em> se
@@ -29,7 +26,7 @@ import java.util.Optional;
  * Por eso el borrado de un catálogo es lógico: solo lo desactiva (ver {@link #disable()}).
  *
  * <p>{@code extraFields} lleva los campos propios de un {@link CatalogType} concreto
- * (p. ej. {@code website} solo para {@code brand} — las columnas propias de su entidad JPA),
+ * (p. ej. {@code regionCode} solo para {@code province} — las columnas propias de su entidad JPA),
  * indexados por nombre de atributo. A diferencia de
  * {@code name}/{@code description}/{@code weight}, este agregado no sabe qué claves
  * puede tener ni de qué tipo son sus valores — eso lo decide únicamente la
@@ -37,23 +34,28 @@ import java.util.Optional;
  * aquí es deliberadamente un mapa genérico en vez de campos con nombre propio.
  */
 @Getter
-public final class Catalog extends Auditable {
+public final class Catalog {
 
+    private final Long id;
     private final CatalogType type;
     private final List<CatalogTranslation> translations;
     private final int weight;
     private final boolean enabled;
     private final Map<String, Object> extraFields;
+    private final LocalDateTime createdAt;
+    private final LocalDateTime updatedAt;
 
     private Catalog(Builder b) {
-        super(b.id, b.createdAt, b.updatedAt);
+        this.id = b.id;
         this.type = b.type;
         this.translations = List.copyOf(b.translations);
         this.weight = b.weight;
         this.enabled = b.enabled;
         // Map.copyOf rechaza valores null; un campo extra ausente/explícitamente
-        // vaciado (p. ej. "website": null) es un valor null legítimo, no un error.
+        // vaciado (p. ej. "regionCode": null) es un valor null legítimo, no un error.
         this.extraFields = Collections.unmodifiableMap(new LinkedHashMap<>(b.extraFields));
+        this.createdAt = b.createdAt;
+        this.updatedAt = b.updatedAt;
     }
 
     /** La traducción para {@code locale}, si este catálogo tiene una. */
@@ -84,19 +86,6 @@ public final class Catalog extends Auditable {
 
     public static Builder builder() {
         return new Builder();
-    }
-
-    public Catalog withIdAndTimestamps(Long newId, LocalDateTime created, LocalDateTime updated) {
-        return builder()
-                .id(newId)
-                .type(this.type)
-                .translations(this.translations)
-                .weight(this.weight)
-                .enabled(this.enabled)
-                .extraFields(this.extraFields)
-                .createdAt(created)
-                .updatedAt(updated)
-                .build();
     }
 
     public Builder toBuilder() {

@@ -6,7 +6,6 @@ import io.masterdata.common.catalog.infrastructure.cache.spi.CacheSpec;
 import io.masterdata.common.catalog.infrastructure.cache.spi.CatalogCacheProvider;
 import io.masterdata.common.catalog.infrastructure.persistence.CatalogProperties;
 import io.masterdata.common.catalog.infrastructure.persistence.CatalogProperties.CacheSettings;
-import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.Cache;
@@ -49,8 +48,8 @@ import java.util.stream.Collectors;
  *       concurrente no puede recachear el valor antiguo entre la invalidación y el commit.</li>
  * </ul>
  *
- * <p>Estado en Actuator: {@code /actuator/catalogcaches} ({@link CatalogCachesEndpoint}: configuración
- * efectiva y estadísticas por tipo, vía Micrometer) y el estándar {@code /actuator/caches}.
+ * <p>Estado en Actuator: el estándar {@code /actuator/caches} y las métricas de Micrometer
+ * ({@code /actuator/metrics/cache.gets?tag=cache:<nombre>}, {@code cache.size}, ...).
  *
  * <p>El gestor es estático: solo existen las cachés creadas aquí. Declarar aquí el
  * {@link CacheManager} hace que la autoconfiguración de caché de Spring Boot se retire, así que
@@ -82,12 +81,6 @@ public class CatalogCacheConfig {
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
         return new CatalogCacheResolver(cacheManager, disabled);
-    }
-
-    /** Estado de las cachés en Actuator: {@code /actuator/catalogcaches} (ver {@link CatalogCachesEndpoint}). */
-    @Bean
-    public CatalogCachesEndpoint catalogCachesEndpoint(CatalogProperties properties, ObjectProvider<MeterRegistry> meterRegistry) {
-        return new CatalogCachesEndpoint(properties, meterRegistry);
     }
 
     /**

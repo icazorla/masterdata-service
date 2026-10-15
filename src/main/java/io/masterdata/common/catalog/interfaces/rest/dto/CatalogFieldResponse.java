@@ -6,7 +6,7 @@ import java.util.List;
 
 @Schema(description = "Definición de un campo de las entradas de un tipo de catálogo")
 public record CatalogFieldResponse(
-        @Schema(description = "Nombre del atributo en el JSON de la API", example = "website")
+        @Schema(description = "Nombre del atributo en el JSON de la API", example = "regionCode")
         String name,
         @Schema(description = "Tipo de dato: string, integer, number, boolean, date o date-time", example = "string")
         String dataType,
@@ -21,7 +21,7 @@ public record CatalogFieldResponse(
         @Schema(description = "Campo adicional propio de este tipo (columna declarada en su entidad), no común a todo catálogo")
         boolean extra,
         @Schema(description = "Operadores con los que se filtra el listado usando el nombre del campo como parámetro: "
-                + "contains (texto), eq (igualdad), gt/gte/lt/lte (rangos, con sufijo: price.gte=10). contains y eq "
+                + "contains (texto), eq (igualdad), gt/gte/lt/lte (rangos, con sufijo: filter=ineCode.gte:10). contains y eq "
                 + "admiten varios valores separados por comas. Vacío si el campo no admite ese filtro genérico.",
                 example = "[\"contains\"]")
         List<String> filterOperators

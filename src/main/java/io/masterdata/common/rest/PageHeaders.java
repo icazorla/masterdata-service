@@ -7,10 +7,8 @@ import java.util.function.Consumer;
 
 /**
  * Construye las cabeceras de respuesta {@code X-Total-Count}/{@code X-Page-Number}/{@code X-Page-Size}/{@code X-Total-Pages}
- * para un endpoint de listado paginado que devuelve un cuerpo {@code List<T>} desnudo —
- * p. ej. {@code ProductController.findAll}/{@code query}. Reutilizable entre features: trabaja
- * a partir de {@link PageResult}, el resultado de página genérico a nivel de dominio, sin
- * dependencia de ningún agregado.
+ * para un endpoint de listado paginado que devuelve un cuerpo {@code List<T>} desnudo, a
+ * partir de {@link PageResult}.
  *
  * <p>Devuelve un {@link Consumer}&lt;{@link HttpHeaders}&gt; para que encaje directamente en
  * {@code ResponseEntity.BodyBuilder#headers(Consumer)}:

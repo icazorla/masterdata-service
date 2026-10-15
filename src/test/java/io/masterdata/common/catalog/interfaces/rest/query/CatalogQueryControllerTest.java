@@ -11,7 +11,7 @@ import io.masterdata.common.catalog.domain.port.CatalogSearchCriteria;
 import io.masterdata.common.catalog.domain.port.CatalogFilter;
 import io.masterdata.common.catalog.domain.service.CatalogQueryService;
 import io.masterdata.common.catalog.infrastructure.i18n.CatalogI18nConfig;
-import io.masterdata.common.catalog.infrastructure.rest.CatalogRestMapperAdapter;
+import io.masterdata.common.catalog.interfaces.rest.mapper.CatalogRestMapper;
 import io.masterdata.common.catalog.interfaces.rest.CatalogTypePathConverter;
 import io.masterdata.common.domain.PageResult;
 import io.masterdata.common.domain.Paging;
@@ -55,7 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>Con la seguridad real ({@link SecurityConfig}) y sin credenciales: la API de consulta es pública.
  */
 @WebMvcTest(CatalogQueryController.class)
-@Import({ApiExceptionHandler.class, CatalogRestMapperAdapter.class, CatalogTypePathConverter.class,
+@Import({ApiExceptionHandler.class, CatalogRestMapper.class, CatalogTypePathConverter.class,
         CatalogI18nConfig.class,
         SecurityConfig.class, SecurityErrorHandler.class})
 class CatalogQueryControllerTest {

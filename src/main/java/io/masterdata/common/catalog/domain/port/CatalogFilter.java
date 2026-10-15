@@ -10,13 +10,13 @@ import java.util.Set;
 /**
  * Una condición de filtrado del listado de un catálogo, sobre un campo común filtrable
  * ({@link #COMMON_FIELDS}: {@code name}, {@code description}, {@code enabled}) o sobre un campo
- * adicional propio del tipo (p. ej. {@code website} para {@code brand}).
+ * adicional propio del tipo (p. ej. {@code regionCode} para {@code province}).
  *
  * <p>Llegan todas juntas en el parámetro {@code filter} del listado, con esta sintaxis (ver
  * {@link #parse}):
  *
  * <pre>
- * filter=name:logi;website:acme,beta;price.gte:10;price.lt:50
+ * filter=name:sev;regionCode:1,8;ineCode.gte:10;ineCode.lt:30
  * </pre>
  *
  * <ul>
@@ -61,7 +61,7 @@ public record CatalogFilter(String field, Operator operator, List<String> values
             this.suffix = suffix;
         }
 
-        /** Sufijo tras el nombre del campo ({@code price.gte}); {@code null} para {@link #EQ}. */
+        /** Sufijo tras el nombre del campo ({@code ineCode.gte}); {@code null} para {@link #EQ}. */
         public String suffix() {
             return suffix;
         }

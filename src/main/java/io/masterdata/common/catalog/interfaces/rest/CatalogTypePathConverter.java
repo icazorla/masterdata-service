@@ -5,7 +5,7 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 
 /**
- * Permite que los segmentos de ruta {@code {type}} (p. ej. {@code /api/catalogs/brand})
+ * Permite que los segmentos de ruta {@code {type}} (p. ej. {@code /api/catalogs/province})
  * se enlacen directamente a {@link CatalogType}, sin distinguir mayúsculas/minúsculas
  * y validados contra el conjunto real de tipos configurados — {@link CatalogType#of}
  * solo acepta las claves de {@code app.catalog.types} en {@code application.yml} (ver

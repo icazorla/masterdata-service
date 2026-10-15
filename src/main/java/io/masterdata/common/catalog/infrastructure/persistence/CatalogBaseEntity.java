@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
@@ -48,6 +49,15 @@ public abstract class CatalogBaseEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    /**
+     * Control optimista de concurrencia: Hibernate la incrementa en cada escritura y rechaza
+     * guardar sobre una versión que otra transacción ya ha cambiado. La API la expone como
+     * {@code version} y {@code ETag}, y la comprueba contra {@code If-Match}.
+     */
+    @Version
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private Long version;
 
     @Column(nullable = false, columnDefinition = "integer default 0")
     private Integer weight = 0;

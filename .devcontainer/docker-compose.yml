@@ -1,6 +1,6 @@
 services:
   app:
-    image: mcr.microsoft.com/devcontainers/java:1-17
+    image: mcr.microsoft.com/devcontainers/java:1-21
     volumes:
       - ..:/workspaces/ej1:cached
     command: sleep infinity

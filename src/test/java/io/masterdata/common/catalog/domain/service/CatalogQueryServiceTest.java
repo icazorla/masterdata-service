@@ -186,8 +186,8 @@ class CatalogQueryServiceTest {
 
         assertThat(result).extracting(CatalogTypeDefinition::type).containsExactly(REGION, TestCatalogTypes.PROVINCE);
         assertThat(result.get(0).fields()).extracting(CatalogField::name)
-                .containsExactly("id", "name", "description", "weight", "enabled", "createdAt", "updatedAt", "ineCode");
-        assertThat(result.get(0).fields().get(7)).isEqualTo(CatalogField.extra("ineCode", "integer"));
+                .containsExactly("id", "name", "description", "weight", "enabled", "createdAt", "updatedAt", "version", "ineCode");
+        assertThat(result.get(0).fields().get(8)).isEqualTo(CatalogField.extra("ineCode", "integer"));
         assertThat(result.get(1).fields()).isEqualTo(CatalogQueryService.COMMON_FIELDS);
     }
 

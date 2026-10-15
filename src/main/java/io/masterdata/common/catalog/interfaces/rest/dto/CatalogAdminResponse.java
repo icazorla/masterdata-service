@@ -12,7 +12,8 @@ import java.util.Map;
  * resuelto según {@code Accept-Language}), lleva <b>todas</b> las traducciones indexadas
  * por locale — la misma forma que {@link CatalogRequest#getTranslations()}, así que un
  * formulario de edición puede reenviar lo que recibe. {@code extraFields} viaja aplanado
- * como atributos de primer nivel, igual que en {@link CatalogResponse}.
+ * como atributos de primer nivel, igual que en {@link CatalogResponse}. {@code version} es la que
+ * se reenvía en {@code If-Match} al modificar la entrada.
  */
 public record CatalogAdminResponse(
         Long id,
@@ -22,7 +23,8 @@ public record CatalogAdminResponse(
         Map<String, CatalogTranslationResponse> translations,
         Map<String, Object> extraFields,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        Long version
 ) {
     @JsonAnyGetter
     @Override

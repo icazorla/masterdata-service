@@ -72,7 +72,7 @@ class CatalogCacheDisabledTest {
     @DisplayName("Un tipo que hereda enabled=false no cachea, y sus comandos no fallan")
     void inheritedDisabledType_isNotCached() {
         queryService.findById(TestCatalogTypes.PROVINCE, 1L);
-        commandService.update(TestCatalogTypes.PROVINCE, 1L, new UpdateCatalogCommand(0, true, Map.of(),
+        commandService.update(TestCatalogTypes.PROVINCE, 1L, new UpdateCatalogCommand(null, 0, true, Map.of(),
                 List.of(new CatalogTranslationCommand("en", "Y", null))));
         queryService.findById(TestCatalogTypes.PROVINCE, 1L);
 

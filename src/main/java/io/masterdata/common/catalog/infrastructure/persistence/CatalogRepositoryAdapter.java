@@ -390,6 +390,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
         } else {
             entity = mergeIntoExisting(d, catalog);
         }
+        em.flush(); // la respuesta lleva ya la nueva version y updatedAt
         return toDomain(d, entity);
     }
 
@@ -438,6 +439,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
                 .extraFields(CatalogExtraFieldsAccessor.read(entity, d.extraFields()))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .version(entity.getVersion())
                 .build();
     }
 

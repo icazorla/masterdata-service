@@ -5,6 +5,7 @@ import io.masterdata.common.catalog.domain.CatalogTranslation;
 import io.masterdata.common.catalog.domain.CatalogType;
 import io.masterdata.common.catalog.domain.TestCatalogTypes;
 import io.masterdata.common.catalog.domain.exception.CatalogNotFoundException;
+import io.masterdata.common.catalog.domain.exception.CatalogVersionConflictException;
 import io.masterdata.common.catalog.domain.exception.DuplicateCatalogNameException;
 import io.masterdata.common.catalog.domain.port.CatalogRepository;
 import io.masterdata.common.catalog.domain.port.CatalogTranslationCommand;
@@ -55,11 +56,12 @@ class CatalogCommandServiceTest {
         sample = Catalog.builder()
                 .id(1L)
                 .type(REGION)
+                .version(3L)
                 .translations(List.of(new CatalogTranslation("en", "Logitech", "Peripheral manufacturer")))
                 .build();
 
         validCreate = new CreateCatalogCommand(REGION, 0, true, Map.of(), List.of(new CatalogTranslationCommand("en", "Logitech", "Peripheral manufacturer")));
-        validUpdate = new UpdateCatalogCommand(0, true, Map.of(), List.of(new CatalogTranslationCommand("en", "Logitech", "Peripheral manufacturer")));
+        validUpdate = new UpdateCatalogCommand(null, 0, true, Map.of(), List.of(new CatalogTranslationCommand("en", "Logitech", "Peripheral manufacturer")));
     }
 
     @Test
@@ -90,7 +92,7 @@ class CatalogCommandServiceTest {
     @Test
     @DisplayName("update modifica la entrada cuando el nombre no cambia")
     void update_modifiesWhenNameUnchanged() {
-        UpdateCatalogCommand updateCmd = new UpdateCatalogCommand(5, true, Map.of(), List.of(new CatalogTranslationCommand("en", "Logitech", "New description")));
+        UpdateCatalogCommand updateCmd = new UpdateCatalogCommand(null, 5, true, Map.of(), List.of(new CatalogTranslationCommand("en", "Logitech", "New description")));
         when(repository.findById(REGION, 1L)).thenReturn(Optional.of(sample));
         when(repository.existsByLocaleAndName(REGION, "en", "Logitech", 1L)).thenReturn(false);
         when(repository.save(any(Catalog.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -104,12 +106,47 @@ class CatalogCommandServiceTest {
     @Test
     @DisplayName("update detecta duplicado cuando el nombre cambia a uno existente")
     void update_throwsWhenNewNameExists() {
-        UpdateCatalogCommand updateCmd = new UpdateCatalogCommand(0, true, Map.of(), List.of(new CatalogTranslationCommand("en", "Samsung", "desc")));
+        UpdateCatalogCommand updateCmd = new UpdateCatalogCommand(null, 0, true, Map.of(), List.of(new CatalogTranslationCommand("en", "Samsung", "desc")));
         when(repository.findById(REGION, 1L)).thenReturn(Optional.of(sample));
         when(repository.existsByLocaleAndName(REGION, "en", "Samsung", 1L)).thenReturn(true);
 
         assertThatThrownBy(() -> service.update(REGION, 1L, updateCmd))
                 .isInstanceOf(DuplicateCatalogNameException.class);
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("update rechaza los cambios hechos sobre una versión que ya no es la actual, sin guardar")
+    void update_throwsWhenVersionIsStale() {
+        UpdateCatalogCommand stale = new UpdateCatalogCommand(2L, 0, true, Map.of(), validUpdate.translations());
+        when(repository.findById(REGION, 1L)).thenReturn(Optional.of(sample));
+
+        assertThatThrownBy(() -> service.update(REGION, 1L, stale))
+                .isInstanceOf(CatalogVersionConflictException.class);
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("update guarda cuando la versión esperada es la actual")
+    void update_savesWhenVersionMatches() {
+        UpdateCatalogCommand current = new UpdateCatalogCommand(3L, 0, true, Map.of(), validUpdate.translations());
+        when(repository.findById(REGION, 1L)).thenReturn(Optional.of(sample));
+        when(repository.save(any(Catalog.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.update(REGION, 1L, current);
+
+        verify(repository).save(any(Catalog.class));
+    }
+
+    @Test
+    @DisplayName("delete rechaza borrar sobre una versión que ya no es la actual")
+    void delete_throwsWhenVersionIsStale() {
+        when(repository.findById(REGION, 1L)).thenReturn(Optional.of(sample));
+
+        assertThatThrownBy(() -> service.delete(REGION, 1L, 2L))
+                .isInstanceOf(CatalogVersionConflictException.class);
 
         verify(repository, never()).save(any());
     }
@@ -132,7 +169,7 @@ class CatalogCommandServiceTest {
                 .translations(List.of(new CatalogTranslation("en", "Logitech", "desc"))).build();
         when(repository.findById(REGION, 1L)).thenReturn(Optional.of(existing));
 
-        service.delete(REGION, 1L);
+        service.delete(REGION, 1L, null);
 
         verify(repository).save(argThat(c -> c.getId().equals(1L) && !c.isEnabled() && c.getWeight() == 5
                 && c.getTranslations().equals(existing.getTranslations())));
@@ -145,7 +182,7 @@ class CatalogCommandServiceTest {
                 .translations(List.of(new CatalogTranslation("en", "Logitech", "desc"))).build();
         when(repository.findById(REGION, 1L)).thenReturn(Optional.of(disabled));
 
-        service.delete(REGION, 1L);
+        service.delete(REGION, 1L, null);
 
         verify(repository, never()).save(any());
     }
@@ -155,7 +192,7 @@ class CatalogCommandServiceTest {
     void delete_throwsWhenNotFound() {
         when(repository.findById(REGION, 999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.delete(REGION, 999L))
+        assertThatThrownBy(() -> service.delete(REGION, 999L, null))
                 .isInstanceOf(CatalogNotFoundException.class);
 
         verify(repository, never()).save(any());

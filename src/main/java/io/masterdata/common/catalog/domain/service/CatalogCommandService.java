@@ -4,6 +4,7 @@ import io.masterdata.common.catalog.domain.Catalog;
 import io.masterdata.common.catalog.domain.CatalogType;
 import io.masterdata.common.catalog.domain.exception.CatalogNotFoundException;
 import io.masterdata.common.catalog.domain.exception.DuplicateCatalogNameException;
+import io.masterdata.common.catalog.domain.exception.CatalogVersionConflictException;
 import io.masterdata.common.catalog.domain.port.CatalogRepository;
 import io.masterdata.common.catalog.domain.port.CatalogTranslationCommand;
 import io.masterdata.common.catalog.domain.port.CreateCatalogCommand;
@@ -31,6 +32,11 @@ import java.util.List;
  * entrada en cualquiera de ellos (nombre, orden, peso) y sus claves no se pueden enumerar. Las
  * escrituras son raras frente a las lecturas, así que vaciarlos es barato. La invalidación se
  * aplica al hacer commit (ver {@code CatalogCacheConfig}).
+ *
+ * <p><b>Concurrencia</b>: actualizar y borrar comprueban la versión que espera el cliente
+ * ({@link CatalogVersionConflictException} si no coincide), para que un cambio hecho sobre una copia
+ * ya superada no pise sin aviso el de otra persona. Si otra transacción escribe entre la lectura y
+ * el guardado, lo detecta Hibernate con {@code @Version}.
  */
 @Service
 @RequiredArgsConstructor
@@ -53,6 +59,7 @@ public class CatalogCommandService {
     public Catalog update(CatalogType type, Long id, UpdateCatalogCommand cmd) {
         Catalog existing = repository.findById(type, id)
                 .orElseThrow(() -> new CatalogNotFoundException(type, id));
+        requireVersion(existing, cmd.expectedVersion());
         requireTranslationsUnused(type, cmd.translations(), id);
 
         Catalog updated = CatalogMapper.applyUpdate(existing, cmd);
@@ -68,12 +75,21 @@ public class CatalogCommandService {
      * fila, porque otros datos pueden seguir referenciándola (ver {@link Catalog}). Idempotente:
      * borrar una entrada ya desactivada no escribe nada. Su nombre sigue ocupado: para volver a
      * usarlo se reactiva la entrada ({@code enabled=true}), no se crea otra.
+     *
+     * @param expectedVersion la versión que el cliente espera borrar; {@code null} no comprueba nada
      */
-    public void delete(CatalogType type, Long id) {
+    public void delete(CatalogType type, Long id, Long expectedVersion) {
         Catalog existing = repository.findById(type, id)
                 .orElseThrow(() -> new CatalogNotFoundException(type, id));
+        requireVersion(existing, expectedVersion);
         if (existing.isEnabled()) {
             repository.save(existing.disable());
+        }
+    }
+
+    private static void requireVersion(Catalog existing, Long expectedVersion) {
+        if (expectedVersion != null && !expectedVersion.equals(existing.getVersion())) {
+            throw new CatalogVersionConflictException(existing.getType(), existing.getId(), expectedVersion, existing.getVersion());
         }
     }
 

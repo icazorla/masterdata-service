@@ -90,7 +90,7 @@ class CatalogCacheTest {
     private final Catalog peripherals = Catalog.builder().id(1L).type(PROVINCE)
             .translations(List.of(new CatalogTranslation("en", "Peripherals", "desc"))).build();
 
-    private final UpdateCatalogCommand rename = new UpdateCatalogCommand(0, true, Map.of(),
+    private final UpdateCatalogCommand rename = new UpdateCatalogCommand(null, 0, true, Map.of(),
             List.of(new CatalogTranslationCommand("en", "Logitech Pro", "desc")));
 
     @BeforeEach
@@ -242,7 +242,7 @@ class CatalogCacheTest {
         queryService.findById(REGION, 1L);                       // repo: 1
         queryService.findAll(REGION, "en", NO_FILTER, "name", "ASC");
 
-        commandService.delete(REGION, 1L);                        // repo: 2 (el propio delete lee la entrada)
+        commandService.delete(REGION, 1L, null);                        // repo: 2 (el propio delete lee la entrada)
         queryService.findById(REGION, 1L);                       // repo: 3 (invalidada)
         queryService.findAll(REGION, "en", NO_FILTER, "name", "ASC");
 
@@ -256,7 +256,7 @@ class CatalogCacheTest {
         queryService.findById(REGION, 1L);
         when(repository.findById(REGION, 9L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> commandService.delete(REGION, 9L)).isInstanceOf(CatalogNotFoundException.class);
+        assertThatThrownBy(() -> commandService.delete(REGION, 9L, null)).isInstanceOf(CatalogNotFoundException.class);
         queryService.findById(REGION, 1L);
 
         verify(repository, times(1)).findById(REGION, 1L);

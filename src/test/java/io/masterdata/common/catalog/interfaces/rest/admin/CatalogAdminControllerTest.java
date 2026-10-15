@@ -6,6 +6,7 @@ import io.masterdata.common.catalog.domain.CatalogType;
 import io.masterdata.common.catalog.domain.TestCatalogTypes;
 import io.masterdata.common.catalog.domain.TestCriteria;
 import io.masterdata.common.catalog.domain.exception.CatalogNotFoundException;
+import io.masterdata.common.catalog.domain.exception.CatalogVersionConflictException;
 import io.masterdata.common.catalog.domain.exception.DuplicateCatalogNameException;
 import io.masterdata.common.catalog.domain.exception.InvalidCatalogQueryException;
 import io.masterdata.common.catalog.domain.port.CatalogSearchCriteria;
@@ -27,6 +28,7 @@ import io.masterdata.common.rest.patch.JsonPatchApplier;
 import io.masterdata.config.security.SecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -390,6 +392,90 @@ class CatalogAdminControllerTest {
     }
 
     @Test
+    void update_passesIfMatchVersionAndReturnsNewETag() throws Exception {
+        when(commandService.update(eq(TestCatalogTypes.REGION), eq(1L), any(UpdateCatalogCommand.class)))
+                .thenReturn(buildEntity(1L, "Logitech").toBuilder().version(4L).build());
+
+        mockMvc.perform(put("/admin/api/catalogs/region/{id}", 1L)
+                        .header("If-Match", "\"3\"")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildRequest("Logitech"))))
+                .andExpect(status().isOk())
+                .andExpect(header().string("ETag", "\"4\""))
+                .andExpect(jsonPath("$.version").value(4));
+
+        verify(commandService).update(eq(TestCatalogTypes.REGION), eq(1L), argThat(cmd -> Long.valueOf(3).equals(cmd.expectedVersion())));
+    }
+
+    @Test
+    void findById_returnsETagAnd304WhenUnchanged() throws Exception {
+        when(queryService.findById(TestCatalogTypes.REGION, 1L)).thenReturn(buildEntity(1L, "Logitech").toBuilder().version(2L).build());
+
+        mockMvc.perform(get("/admin/api/catalogs/region/{id}", 1L))
+                .andExpect(status().isOk())
+                .andExpect(header().string("ETag", "\"2\""));
+        mockMvc.perform(get("/admin/api/catalogs/region/{id}", 1L).header("If-None-Match", "\"2\""))
+                .andExpect(status().isNotModified());
+    }
+
+    @Test
+    void update_returns412WhenIfMatchIsStale() throws Exception {
+        when(commandService.update(eq(TestCatalogTypes.REGION), eq(1L), any(UpdateCatalogCommand.class)))
+                .thenThrow(new CatalogVersionConflictException(TestCatalogTypes.REGION, 1L, 3L, 4L));
+
+        mockMvc.perform(put("/admin/api/catalogs/region/{id}", 1L)
+                        .header("If-Match", "\"3\"")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildRequest("Logitech"))))
+                .andExpect(status().isPreconditionFailed())
+                .andExpect(jsonPath("$.status").value(412));
+    }
+
+    @Test
+    void update_returns409WhenAnotherRequestWritesAtTheSameTime() throws Exception {
+        when(commandService.update(eq(TestCatalogTypes.REGION), eq(1L), any(UpdateCatalogCommand.class)))
+                .thenThrow(new ObjectOptimisticLockingFailureException("RegionEntity", 1L));
+
+        mockMvc.perform(put("/admin/api/catalogs/region/{id}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildRequest("Logitech"))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void update_withoutIfMatchDoesNotCheckVersion() throws Exception {
+        when(commandService.update(eq(TestCatalogTypes.REGION), eq(1L), any(UpdateCatalogCommand.class))).thenReturn(buildEntity(1L, "Logitech"));
+
+        mockMvc.perform(put("/admin/api/catalogs/region/{id}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildRequest("Logitech"))))
+                .andExpect(status().isOk());
+
+        verify(commandService).update(eq(TestCatalogTypes.REGION), eq(1L), argThat(cmd -> cmd.expectedVersion() == null));
+    }
+
+    @Test
+    void patch_withoutIfMatchExpectsTheVersionItRead() throws Exception {
+        when(queryService.findById(TestCatalogTypes.REGION, 1L)).thenReturn(buildEntity(1L, "Logitech").toBuilder().version(7L).build());
+        when(commandService.update(eq(TestCatalogTypes.REGION), eq(1L), any(UpdateCatalogCommand.class))).thenReturn(buildEntity(1L, "Logitech"));
+
+        mockMvc.perform(patch("/admin/api/catalogs/region/{id}", 1L)
+                        .contentType("application/json-patch+json")
+                        .content("[{\"op\":\"replace\",\"path\":\"/weight\",\"value\":2}]"))
+                .andExpect(status().isOk());
+
+        verify(commandService).update(eq(TestCatalogTypes.REGION), eq(1L), argThat(cmd -> Long.valueOf(7).equals(cmd.expectedVersion())));
+    }
+
+    @Test
+    void delete_passesIfMatchVersion() throws Exception {
+        mockMvc.perform(delete("/admin/api/catalogs/region/{id}", 1L).header("If-Match", "W/\"5\""))
+                .andExpect(status().isNoContent());
+
+        verify(commandService).delete(TestCatalogTypes.REGION, 1L, 5L);
+    }
+
+    @Test
     void update_returns404WhenNotFound() throws Exception {
         when(commandService.update(eq(TestCatalogTypes.REGION), eq(999L), any(UpdateCatalogCommand.class)))
                 .thenThrow(new CatalogNotFoundException(TestCatalogTypes.REGION, 999L));
@@ -542,7 +628,7 @@ class CatalogAdminControllerTest {
 
     @Test
     void delete_returns204NoContent() throws Exception {
-        doNothing().when(commandService).delete(TestCatalogTypes.REGION, 1L);
+        doNothing().when(commandService).delete(TestCatalogTypes.REGION, 1L, null);
 
         mockMvc.perform(delete("/admin/api/catalogs/region/{id}", 1L))
                 .andExpect(status().isNoContent());
@@ -550,7 +636,7 @@ class CatalogAdminControllerTest {
 
     @Test
     void delete_returns404WhenNotFound() throws Exception {
-        doThrow(new CatalogNotFoundException(TestCatalogTypes.REGION, 999L)).when(commandService).delete(TestCatalogTypes.REGION, 999L);
+        doThrow(new CatalogNotFoundException(TestCatalogTypes.REGION, 999L)).when(commandService).delete(TestCatalogTypes.REGION, 999L, null);
 
         mockMvc.perform(delete("/admin/api/catalogs/region/{id}", 999L))
                 .andExpect(status().isNotFound());

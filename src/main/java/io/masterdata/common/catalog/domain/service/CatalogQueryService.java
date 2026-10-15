@@ -70,7 +70,8 @@ public class CatalogQueryService {
             new CatalogField("weight", "integer", false, false, false, true, false),
             new CatalogField("enabled", "boolean", false, false, false, false, false, List.of("eq")),
             new CatalogField("createdAt", "date-time", false, true, false, false, false),
-            new CatalogField("updatedAt", "date-time", false, true, false, false, false));
+            new CatalogField("updatedAt", "date-time", false, true, false, false, false),
+            new CatalogField("version", "integer", false, true, false, false, false));
 
     private final CatalogRepository repository;
 

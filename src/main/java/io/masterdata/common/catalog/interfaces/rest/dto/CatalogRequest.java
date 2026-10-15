@@ -71,7 +71,7 @@ public class CatalogRequest {
      * Atributos de {@link CatalogAdminResponse} que asigna el servidor: se ignoran para que un formulario
      * pueda reenviar tal cual lo que recibió. Cualquier otro atributo desconocido se rechaza al guardar.
      */
-    private static final Set<String> READ_ONLY_FIELDS = Set.of("id", "type", "createdAt", "updatedAt");
+    private static final Set<String> READ_ONLY_FIELDS = Set.of("id", "type", "createdAt", "updatedAt", "version");
 
     @JsonAnySetter
     public void setExtraField(String name, Object value) {

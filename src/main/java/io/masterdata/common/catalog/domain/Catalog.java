@@ -44,6 +44,7 @@ public final class Catalog {
     private final Map<String, Object> extraFields;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
+    private final Long version;
 
     private Catalog(Builder b) {
         this.id = b.id;
@@ -56,6 +57,7 @@ public final class Catalog {
         this.extraFields = Collections.unmodifiableMap(new LinkedHashMap<>(b.extraFields));
         this.createdAt = b.createdAt;
         this.updatedAt = b.updatedAt;
+        this.version = b.version;
     }
 
     /** La traducción para {@code locale}, si este catálogo tiene una. */
@@ -97,7 +99,8 @@ public final class Catalog {
                 .enabled(this.enabled)
                 .extraFields(this.extraFields)
                 .createdAt(this.getCreatedAt())
-                .updatedAt(this.getUpdatedAt());
+                .updatedAt(this.getUpdatedAt())
+                .version(this.version);
     }
 
     public static final class Builder {
@@ -109,6 +112,7 @@ public final class Catalog {
         private Map<String, Object> extraFields = Map.of();
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
+        private Long version;
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder type(CatalogType type) { this.type = type; return this; }
@@ -118,6 +122,7 @@ public final class Catalog {
         public Builder enabled(boolean enabled) { this.enabled = enabled; return this; }
         public Builder createdAt(LocalDateTime createdAt) { this.createdAt = createdAt; return this; }
         public Builder updatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; return this; }
+        public Builder version(Long version) { this.version = version; return this; }
 
         public Catalog build() {
             return new Catalog(this);

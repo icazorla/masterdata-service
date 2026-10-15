@@ -62,6 +62,7 @@ Cada entrada de catálogo tiene:
 | `enabled`     | booleano   | no        | Si la entrada está activa. Por defecto `true`. Las desactivadas no salen en los listados de la API de consulta, pero siguen resolviéndose por id |
 | campos extra  | según tipo | no        | Propios de cada tipo (p. ej. `ineCode` en `province`) |
 | `createdAt` / `updatedAt` | fecha-hora | — | Gestionados automáticamente |
+| `version`     | entero     | —         | Sube en cada modificación. Sirve para no pisar cambios de otra persona (ver abajo) |
 
 ### 2. Operaciones disponibles
 
@@ -100,6 +101,7 @@ Cada entrada de catálogo tiene:
       { "name": "enabled",     "dataType": "boolean",   "required": false, "readOnly": false, "translatable": false, "sortable": false, "extra": false },
       { "name": "createdAt",   "dataType": "date-time", "required": false, "readOnly": true,  "translatable": false, "sortable": false, "extra": false },
       { "name": "updatedAt",   "dataType": "date-time", "required": false, "readOnly": true,  "translatable": false, "sortable": false, "extra": false },
+      { "name": "version",     "dataType": "integer",   "required": false, "readOnly": true,  "translatable": false, "sortable": false, "extra": false },
       { "name": "ineCode",     "dataType": "integer",   "required": false, "readOnly": false, "translatable": false, "sortable": true,  "extra": true },
       { "name": "regionCode",  "dataType": "integer",   "required": false, "readOnly": false, "translatable": false, "sortable": true,  "extra": true }
     ]
@@ -164,8 +166,16 @@ Cada entrada de catálogo tiene:
   "ineCode": 41,
   "regionCode": 1,
   "createdAt": "2026-10-01T10:00:00",
-  "updatedAt": "2026-10-01T10:00:00"
+  "updatedAt": "2026-10-01T10:00:00",
+  "version": 3
 }
+```
+
+**Cambios simultáneos**: las respuestas de una sola entrada llevan la cabecera `ETag` con su `version` (p. ej. `ETag: "3"`). Si PUT, PATCH o DELETE envían esa versión en `If-Match`, y otra persona ha modificado la entrada entre medias, se responde **412** sin cambiar nada: hay que volver a cargarla. Sin `If-Match` no se comprueba la versión, salvo en PATCH, que se aplica siempre sobre la versión que acaba de leer. Si dos peticiones escriben la misma entrada en el mismo instante, una de ellas recibe **409**. Un `GET` por id con `If-None-Match` igual a la versión actual devuelve **304**.
+
+```bash
+curl -X PUT http://localhost:8080/admin/api/catalogs/province/41 -u admin:admin \
+  -H 'If-Match: "3"' -H 'Content-Type: application/json' -d @provincia.json
 ```
 
 **Eliminar** es un **borrado lógico**: pone `enabled=false` en vez de borrar la fila, así que los datos que referencian la entrada la siguen resolviendo por id. Es idempotente (borrar una entrada ya desactivada devuelve 204 sin cambiar nada) y devuelve 404 si el id no existe. Para recuperarla, PUT/PATCH con `enabled=true`; su nombre sigue ocupado mientras tanto, así que no se puede crear otra entrada con el mismo nombre.
@@ -283,7 +293,7 @@ Por ejemplo, las provincias de Andalucía: `GET /api/catalogs/province?filter=re
 - Viajan en el JSON como atributos normales de primer nivel (`"ineCode": 41`), tanto en la petición como en la respuesta.
 - Se pueden usar en `sortBy` y como filtro del listado (solo en su tipo; ver [punto 3](#3-consultas-filtrado-ordenación-y-paginación)).
 - En POST/PUT se sobrescriben por completo: omitir uno lo deja vacío.
-- Un atributo que no sea un campo del tipo (p. ej. una errata como `inecode`) se rechaza con **422**, en vez de ignorarse y dejar vacío el campo real. Solo se ignoran `id`, `type`, `createdAt` y `updatedAt`, para poder reenviar tal cual una respuesta de la API de gestión.
+- Un atributo que no sea un campo del tipo (p. ej. una errata como `inecode`) se rechaza con **422**, en vez de ignorarse y dejar vacío el campo real. Solo se ignoran `id`, `type`, `createdAt`, `updatedAt` y `version`, para poder reenviar tal cual una respuesta de la API de gestión.
 - Cada valor se convierte al tipo de su columna: `"ineCode": "41"` vale, pero `"ineCode": "abc"` o `"ineCode": 4.5` → **422**. Las fechas van en ISO-8601.
 - Solo pueden ser columnas simples, no relaciones JPA: por eso `regionCode` es un código y no una `@ManyToOne` a `region`.
 
@@ -313,7 +323,7 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 ```
 
 - El patch es **atómico**: si una operación falla, no se aplica ninguna.
-- `id`, `type`, `createdAt` y `updatedAt` no forman parte del documento y no se pueden modificar: `replace`/`remove` sobre ellos falla con 400, y un `add` se ignora.
+- `id`, `type`, `createdAt`, `updatedAt` y `version` no forman parte del documento y no se pueden modificar: `replace`/`remove` sobre ellos falla con 400, y un `add` se ignora.
 - El resultado se valida con las mismas reglas que POST/PUT (p. ej. quitar `/translations/en` → 400; añadir un atributo que no es campo del tipo → 422).
 
 | Status | Cuándo |
@@ -321,7 +331,8 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 | 200 | Patch aplicado |
 | 400 | Documento inválido, operación no aplicable o resultado inválido |
 | 404 | Entrada no encontrada |
-| 409 | Una operación `test` falló, o el nombre resultante ya existe |
+| 409 | Una operación `test` falló, el nombre resultante ya existe, u otra petición escribió a la vez |
+| 412 | `If-Match` no coincide con la versión actual |
 | 415 | `Content-Type` distinto de `application/json-patch+json` |
 | 422 | El resultado trae un atributo que no es campo del tipo, o un valor que no encaja con su tipo |
 
@@ -335,6 +346,7 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 | `description` máx. 500 caracteres | 400 |
 | **Nombre único** por tipo e idioma, sin distinguir mayúsculas (dos provincias no pueden llamarse "Seville" en `en`; una provincia y una comunidad sí, p. ej. "Madrid") | 409 |
 | Restricciones de base de datos (p. ej. `ineCode` repetido) | 409 |
+| `If-Match` debe ser la versión actual de la entrada | 412 |
 | Los atributos extra deben ser campos del tipo, con un valor convertible a su tipo de dato | 422 |
 | `sortBy` debe ser un campo ordenable del tipo | 422 |
 | Los filtros deben nombrar un campo filtrable del tipo, con un operador y un valor válidos para su tipo de dato | 422 |
@@ -363,7 +375,8 @@ Todas las respuestas de error tienen el mismo formato, con `message` localizado 
 | 403 | Autenticado, pero sin el rol requerido (`ADMIN`) |
 | 404 | Entrada no encontrada |
 | 405 | Método no permitido (p. ej. `POST` sobre la API de consulta) |
-| 409 | Nombre duplicado, `test` de JSON Patch fallido, o violación de integridad en base de datos |
+| 409 | Nombre duplicado, `test` de JSON Patch fallido, violación de integridad en base de datos, u otra petición modificó la entrada en el mismo instante |
+| 412 | `If-Match` no coincide con la versión actual: otra persona modificó la entrada |
 | 415 | `Content-Type` no soportado |
 | 422 | Petición bien formada pero no válida para el tipo: `sortBy` no ordenable, filtro no válido, o un campo extra desconocido o con un valor que no encaja |
 | 500 | Error interno |
@@ -454,7 +467,7 @@ Los 401/403 usan el mismo formato de error y los mismos mensajes localizados que
 ---
 
 ## Stack
-- Java 17
+- Java 21
 - Spring Boot 4.1.1 (Web, Validation, Data JPA + Hibernate, Cache, Actuator, Security)
 - PostgreSQL (ejecución) / H2 en memoria (solo tests)
 - Lombok
@@ -462,14 +475,14 @@ Los 401/403 usan el mismo formato de error y los mismos mensajes localizados que
 - Caffeine (caché en memoria, vía Spring Cache; la librería es intercambiable)
 
 ## Requirements
-- JDK 17+
+- JDK 21+
 - Maven 3.9+
 - PostgreSQL
 
 ## Base de datos
 Por defecto la app se conecta a `jdbc:postgresql://localhost:5432/postgres` (usuario `postgres`, contraseña `secret`, esquema `public`; ver [application.yml](src/main/resources/application.yml)). Hibernate crea/actualiza las tablas automáticamente (`ddl-auto: update`).
 
-El repositorio incluye un **devcontainer** ([.devcontainer](.devcontainer)) con Java 17 + Maven y PostgreSQL 16 (puertos 8080 y 5432). Ese contenedor crea la base `ej1` con contraseña `postgres`, que no coincide con los valores por defecto de `application.yml`: ajusta `spring.datasource.*` (o usa variables de entorno como `SPRING_DATASOURCE_URL` y `SPRING_DATASOURCE_PASSWORD`).
+El repositorio incluye un **devcontainer** ([.devcontainer](.devcontainer)) con Java 21 + Maven y PostgreSQL 16 (puertos 8080 y 5432). Ese contenedor crea la base `ej1` con contraseña `postgres`, que no coincide con los valores por defecto de `application.yml`: ajusta `spring.datasource.*` (o usa variables de entorno como `SPRING_DATASOURCE_URL` y `SPRING_DATASOURCE_PASSWORD`).
 
 ## Run
 ```bash

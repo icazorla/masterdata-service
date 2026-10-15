@@ -94,6 +94,16 @@ class CatalogRepositoryAdapterTest {
         assertThat(saved.translation("en").get().name()).isEqualTo("Logitech");
     }
 
+    @ParameterizedTest(name = "[{0}] save devuelve la version: 0 al crear, +1 en cada modificación")
+    @MethodSource("catalogTypes")
+    void save_returnsIncrementedVersion(CatalogType type) {
+        Catalog created = adapter.save(sample(type, "Logitech", "Peripheral manufacturer"));
+        Catalog updated = adapter.save(created.toBuilder().weight(5).build());
+
+        assertThat(created.getVersion()).isZero();
+        assertThat(updated.getVersion()).isEqualTo(1L);
+    }
+
     @ParameterizedTest(name = "[{0}] findById devuelve el Catalog del dominio")
     @MethodSource("catalogTypes")
     void findById_returnsDomain(CatalogType type) {

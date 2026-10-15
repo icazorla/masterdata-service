@@ -29,6 +29,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ETag;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -38,6 +40,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -57,6 +60,10 @@ import java.util.Locale;
  * lista para un formulario de edición. {@code Accept-Language} solo influye en el filtro y
  * el orden por {@code name}/{@code description} del listado. {@code type} se resuelve sin
  * distinguir mayúsculas/minúsculas por {@link CatalogTypePathConverter}.
+ *
+ * <p><b>Concurrencia</b>: cada entrada lleva {@code version}, también como {@code ETag} en las
+ * respuestas de una sola entrada. PUT, PATCH y DELETE aceptan {@code If-Match} con esa versión y
+ * responden 412 si la entrada ya cambió, en vez de pisar el cambio de otra persona.
  */
 @RestController
 @RequestMapping("/admin/api/catalogs/{type}")
@@ -118,12 +125,13 @@ public class CatalogAdminController {
     @GetMapping("/{id}")
     @Operation(summary = "Obtener una entrada de catálogo por id (con todas sus traducciones)")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Entrada encontrada"),
+            @ApiResponse(responseCode = "200", description = "Entrada encontrada. ETag lleva su version."),
+            @ApiResponse(responseCode = "304", description = "If-None-Match coincide con la version actual", content = @Content),
             @ApiResponse(responseCode = "404", description = "Entrada no encontrada", content = @Content)
     })
     public ResponseEntity<CatalogAdminResponse> findById(@Parameter(description = "Tipo de catálogo") @PathVariable CatalogType type,
                                                           @Parameter(description = "Id de la entrada") @PathVariable Long id) {
-        return ResponseEntity.ok(mapper.toAdminResponse(queryService.findById(type, id)));
+        return withETag(ResponseEntity.ok(), queryService.findById(type, id));
     }
 
     @PostMapping
@@ -144,7 +152,7 @@ public class CatalogAdminController {
                 .path("/{id}")
                 .buildAndExpand(created.getId())
                 .toUri();
-        return ResponseEntity.created(location).body(mapper.toAdminResponse(created));
+        return withETag(ResponseEntity.created(location), created);
     }
 
     @PutMapping("/{id}")
@@ -153,12 +161,15 @@ public class CatalogAdminController {
             @ApiResponse(responseCode = "200", description = "Entrada actualizada"),
             @ApiResponse(responseCode = "400", description = "Payload inválido", content = @Content),
             @ApiResponse(responseCode = "404", description = "Entrada no encontrada", content = @Content),
-            @ApiResponse(responseCode = "409", description = "Ya existe una entrada con ese nombre en algún idioma", content = @Content)
+            @ApiResponse(responseCode = "409", description = "Ya existe una entrada con ese nombre en algún idioma, o otra petición la modificó a la vez", content = @Content),
+            @ApiResponse(responseCode = "412", description = IF_MATCH_FAILED, content = @Content)
     })
     public ResponseEntity<CatalogAdminResponse> update(@Parameter(description = "Tipo de catálogo") @PathVariable CatalogType type,
                                                         @Parameter(description = "Id de la entrada") @PathVariable Long id,
+                                                        @Parameter(description = IF_MATCH) @RequestHeader(name = HttpHeaders.IF_MATCH, required = false) String ifMatch,
                                                         @Valid @RequestBody CatalogRequest request) {
-        return ResponseEntity.ok(mapper.toAdminResponse(commandService.update(type, id, mapper.toUpdateCommand(request))));
+        Catalog updated = commandService.update(type, id, mapper.toUpdateCommand(expectedVersion(ifMatch), request));
+        return withETag(ResponseEntity.ok(), updated);
     }
 
     @PatchMapping(path = "/{id}", consumes = "application/json-patch+json")
@@ -174,10 +185,12 @@ public class CatalogAdminController {
             @ApiResponse(responseCode = "200", description = "Entrada actualizada"),
             @ApiResponse(responseCode = "400", description = "Documento JSON Patch inválido, operación no aplicable o resultado inválido", content = @Content),
             @ApiResponse(responseCode = "404", description = "Entrada no encontrada", content = @Content),
-            @ApiResponse(responseCode = "409", description = "Operación 'test' falló, o el nombre resultante ya existe en ese idioma", content = @Content)
+            @ApiResponse(responseCode = "409", description = "Operación 'test' falló, el nombre resultante ya existe en ese idioma, o otra petición la modificó a la vez", content = @Content),
+            @ApiResponse(responseCode = "412", description = IF_MATCH_FAILED, content = @Content)
     })
     public ResponseEntity<CatalogAdminResponse> patch(@Parameter(description = "Tipo de catálogo") @PathVariable CatalogType type,
                                                        @Parameter(description = "Id de la entrada") @PathVariable Long id,
+                                                       @Parameter(description = IF_MATCH) @RequestHeader(name = HttpHeaders.IF_MATCH, required = false) String ifMatch,
                                                        @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                                                description = "Documento JSON Patch (RFC 6902): array de operaciones",
                                                                required = true,
@@ -188,8 +201,10 @@ public class CatalogAdminController {
 
         CatalogRequest patchedRequest = jsonPatchApplier.apply(current, patch);
 
-        Catalog updated = commandService.update(type, id, mapper.toUpdateCommand(patchedRequest));
-        return ResponseEntity.ok(mapper.toAdminResponse(updated));
+        // Sin If-Match, al menos que nadie la haya cambiado entre esta lectura y el guardado.
+        Long expectedVersion = ifMatch != null ? expectedVersion(ifMatch) : existing.getVersion();
+        Catalog updated = commandService.update(type, id, mapper.toUpdateCommand(expectedVersion, patchedRequest));
+        return withETag(ResponseEntity.ok(), updated);
     }
 
     @DeleteMapping("/{id}")
@@ -198,11 +213,42 @@ public class CatalogAdminController {
                     + "referencian siguen resolviéndola por id. Idempotente. Para recuperarla, PUT/PATCH con enabled=true.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Entrada desactivada (o ya lo estaba)", content = @Content(schema = @Schema(hidden = true))),
-            @ApiResponse(responseCode = "404", description = "Entrada no encontrada", content = @Content)
+            @ApiResponse(responseCode = "404", description = "Entrada no encontrada", content = @Content),
+            @ApiResponse(responseCode = "412", description = IF_MATCH_FAILED, content = @Content)
     })
     public ResponseEntity<Void> delete(@Parameter(description = "Tipo de catálogo") @PathVariable CatalogType type,
-                                        @Parameter(description = "Id de la entrada") @PathVariable Long id) {
-        commandService.delete(type, id);
+                                        @Parameter(description = "Id de la entrada") @PathVariable Long id,
+                                        @Parameter(description = IF_MATCH) @RequestHeader(name = HttpHeaders.IF_MATCH, required = false) String ifMatch) {
+        commandService.delete(type, id, expectedVersion(ifMatch));
         return ResponseEntity.noContent().build();
+    }
+
+    private static final String IF_MATCH = "Opcional: la version (ETag) sobre la que se hicieron los cambios, p. ej. \"3\". "
+            + "Si la entrada ya tiene otra, se responde 412 sin modificar nada.";
+    private static final String IF_MATCH_FAILED = "If-Match no coincide con la version actual: otra persona modificó la "
+            + "entrada y hay que volver a cargarla";
+
+    private ResponseEntity<CatalogAdminResponse> withETag(ResponseEntity.BodyBuilder builder, Catalog catalog) {
+        return builder.eTag(String.valueOf(catalog.getVersion())).body(mapper.toAdminResponse(catalog));
+    }
+
+    /**
+     * La version de {@code If-Match} ({@code "3"}, {@code W/"3"} o {@code 3}); {@code null} si no
+     * viene o es {@code *}. Un valor que no es una version nuestra nunca coincide (las versiones
+     * empiezan en 0), así que se trata como -1 y acaba en 412.
+     */
+    private static Long expectedVersion(String ifMatch) {
+        if (ifMatch == null || ifMatch.isBlank()) {
+            return null;
+        }
+        ETag tag = ETag.create(ifMatch.trim());
+        if (tag.isWildcard()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(tag.tag());
+        } catch (NumberFormatException e) {
+            return -1L;
+        }
     }
 }

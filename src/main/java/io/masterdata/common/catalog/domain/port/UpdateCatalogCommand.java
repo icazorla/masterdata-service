@@ -14,8 +14,12 @@ import java.util.Map;
  *
  * <p>{@code extraFields} sobrescribe por completo los campos propios del tipo, igual
  * que {@code weight}/{@code enabled}/{@code translations} — no se fusiona con lo ya persistido.
+ *
+ * <p>{@code expectedVersion} es la versión sobre la que el cliente hizo sus cambios: si la entrada
+ * ya tiene otra, la actualización se rechaza. {@code null} no comprueba nada.
  */
 public record UpdateCatalogCommand(
+        Long expectedVersion,
         int weight,
         boolean enabled,
         Map<String, Object> extraFields,

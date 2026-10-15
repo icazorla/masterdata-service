@@ -4,6 +4,7 @@ import io.masterdata.common.domain.exception.DuplicateResourceException;
 import io.masterdata.common.domain.exception.InvalidQueryException;
 import io.masterdata.common.domain.exception.LocalizedException;
 import io.masterdata.common.domain.exception.NotFoundException;
+import io.masterdata.common.domain.exception.StaleResourceException;
 import io.masterdata.common.rest.patch.JsonPatchException;
 import io.masterdata.common.rest.patch.JsonPatchTestFailedException;
 import jakarta.validation.ConstraintViolationException;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,6 +57,23 @@ public class ApiExceptionHandler {
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<Map<String, Object>> handleDuplicate(DuplicateResourceException ex, Locale locale) {
         return localized(HttpStatus.CONFLICT, ex, locale);
+    }
+
+    /** El {@code If-Match} del cliente ya no es la versión actual del recurso. */
+    @ExceptionHandler(StaleResourceException.class)
+    public ResponseEntity<Map<String, Object>> handleStale(StaleResourceException ex, Locale locale) {
+        return localized(HttpStatus.PRECONDITION_FAILED, ex, locale);
+    }
+
+    /**
+     * Otra transacción modificó el mismo registro entre la lectura y el guardado: lo detecta
+     * Hibernate con {@code @Version} al escribir.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handleOptimisticLock(OptimisticLockingFailureException ex, Locale locale) {
+        log.warn(ex.getMessage());
+        return build(HttpStatus.CONFLICT,
+                messageSource.getMessage("error.concurrentModification", null, locale), List.of());
     }
 
     /**

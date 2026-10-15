@@ -65,7 +65,7 @@ public class CatalogRestMapper {
     public CatalogAdminResponse toAdminResponse(Catalog catalog) {
         return new CatalogAdminResponse(catalog.getId(), catalog.getType(), catalog.getWeight(), catalog.isEnabled(),
                 toTranslationResponses(catalog.getTranslations()), catalog.getExtraFields(),
-                catalog.getCreatedAt(), catalog.getUpdatedAt());
+                catalog.getCreatedAt(), catalog.getUpdatedAt(), catalog.getVersion());
     }
 
     public List<CatalogAdminResponse> toAdminResponseList(List<Catalog> catalogs) {
@@ -91,8 +91,8 @@ public class CatalogRestMapper {
         return new CreateCatalogCommand(type, weightOrDefault(request), enabledOrDefault(request), request.getExtraFields(), toCommands(request.getTranslations()));
     }
 
-    public UpdateCatalogCommand toUpdateCommand(CatalogRequest request) {
-        return new UpdateCatalogCommand(weightOrDefault(request), enabledOrDefault(request), request.getExtraFields(), toCommands(request.getTranslations()));
+    public UpdateCatalogCommand toUpdateCommand(Long expectedVersion, CatalogRequest request) {
+        return new UpdateCatalogCommand(expectedVersion, weightOrDefault(request), enabledOrDefault(request), request.getExtraFields(), toCommands(request.getTranslations()));
     }
 
     /** {@code weight} es opcional en el payload — {@code null} explícito en el JSON pisaría el valor por defecto del DTO. */

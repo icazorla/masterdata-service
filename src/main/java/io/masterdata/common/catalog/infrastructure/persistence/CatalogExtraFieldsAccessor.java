@@ -185,17 +185,13 @@ final class CatalogExtraFieldsAccessor {
         return DESCRIPTORS.get(entityClass).computeIfAbsent(fieldName, name -> introspect(entityClass, name));
     }
 
+    /** Este constructor de {@link PropertyDescriptor} ya exige getter y setter: si falta alguno, lanza. */
     private static PropertyDescriptor introspect(Class<?> entityClass, String fieldName) {
         try {
-            PropertyDescriptor descriptor = new PropertyDescriptor(fieldName, entityClass);
-            if (descriptor.getReadMethod() == null || descriptor.getWriteMethod() == null) {
-                throw new IllegalStateException(
-                        "Extra field '" + fieldName + "' has no getter/setter pair on " + entityClass.getSimpleName());
-            }
-            return descriptor;
+            return new PropertyDescriptor(fieldName, entityClass);
         } catch (IntrospectionException e) {
-            throw new IllegalStateException(
-                    "Extra field '" + fieldName + "' is not a JavaBean property of " + entityClass.getSimpleName(), e);
+            throw new IllegalStateException("Extra field '" + fieldName + "' is not a JavaBean property with getter "
+                    + "and setter on " + entityClass.getSimpleName(), e);
         }
     }
 }

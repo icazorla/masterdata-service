@@ -519,6 +519,8 @@ mvn test
 
 Los tests usan H2 en memoria, así que no necesitan PostgreSQL.
 
+`mvn test` genera también el informe de cobertura de JaCoCo en `target/site/jacoco/index.html` (y en `jacoco.xml`/`jacoco.csv` para herramientas como Sonar). El código que genera Lombok no cuenta en la cobertura (ver `lombok.config`).
+
 ## Arquitectura
 Arquitectura hexagonal (Ports & Adapters), paquete raíz `io.masterdata`:
 

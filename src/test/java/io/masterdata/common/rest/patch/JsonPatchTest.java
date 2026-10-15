@@ -237,4 +237,135 @@ class JsonPatchTest {
         assertThatThrownBy(() -> JsonPatch.apply(doc, List.of(op("bogus", "/foo", "x"))))
                 .isInstanceOf(JsonPatchException.class);
     }
+
+    @Test
+    @DisplayName("op ausente falla como op no soportada")
+    void missingOpFails() {
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), List.of(op(null, "/foo", "x"))))
+                .isInstanceOf(JsonPatchException.class)
+                .cause().hasMessageContaining("Unsupported op ''");
+    }
+
+    @Test
+    @DisplayName("path ausente falla, y from ausente en move/copy también")
+    void missingPathOrFromFails() {
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), List.of(op("add", null, "x"))))
+                .cause().hasMessage("missing 'path'");
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), List.of(moveOrCopy("copy", null, "/baz"))))
+                .cause().hasMessage("missing 'from'");
+    }
+
+    @Test
+    @DisplayName("un JSON Pointer que no empieza por '/' es inválido")
+    void pointerWithoutLeadingSlashFails() {
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), List.of(op("add", "foo", "x"))))
+                .cause().hasMessageContaining("must start with '/'");
+    }
+
+    // ---- documento completo (pointer "") ------------------------------
+
+    @Test
+    @DisplayName("add y replace sobre el pointer vacío sustituyen el documento entero")
+    void addAndReplaceWholeDocument() {
+        assertThat(JsonPatch.apply(map("foo", "bar"), List.of(op("add", "", map("baz", 1)))))
+                .isEqualTo(map("baz", 1));
+        assertThat(JsonPatch.apply(map("foo", "bar"), List.of(op("replace", "", List.of("x")))))
+                .isEqualTo(List.of("x"));
+    }
+
+    @Test
+    @DisplayName("remove sobre el pointer vacío falla: no se puede borrar el documento entero")
+    void removeWholeDocumentFails() {
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), List.of(op("remove", "", null))))
+                .cause().hasMessage("cannot remove the whole document");
+    }
+
+    // ---- valores escalares e índices ------------------------------------
+
+    @Test
+    @DisplayName("add y remove dentro de un escalar fallan")
+    void addOrRemoveInsideScalarFails() {
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), List.of(op("add", "/foo/x", 1))))
+                .cause().hasMessage("cannot add into a scalar value");
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), List.of(op("remove", "/foo/x", null))))
+                .cause().hasMessage("cannot remove from a scalar value");
+    }
+
+    @Test
+    @DisplayName("navegar a través de un escalar falla")
+    void navigateThroughScalarFails() {
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), List.of(op("add", "/foo/x/y", 1))))
+                .cause().hasMessage("cannot navigate into a scalar value at 'x'");
+    }
+
+    @Test
+    @DisplayName("un índice de array que no es un número falla")
+    void nonNumericArrayIndexFails() {
+        Map<String, Object> doc = map("items", List.of("a"));
+
+        assertThatThrownBy(() -> JsonPatch.apply(doc, List.of(op("remove", "/items/abc", null))))
+                .cause().hasMessage("invalid array index 'abc'");
+        assertThatThrownBy(() -> JsonPatch.apply(doc, List.of(op("remove", "/items/01", null))))
+                .cause().hasMessage("invalid array index '01'");
+    }
+
+    @Test
+    @DisplayName("test navega por los elementos de un array")
+    void test_navigatesIntoArray() {
+        Map<String, Object> doc = map("items", List.of(map("name", "a"), map("name", "b")));
+
+        Object result = JsonPatch.apply(doc, List.of(op("test", "/items/1/name", "b")));
+
+        assertThat(result).isEqualTo(doc);
+    }
+
+    // ---- igualdad profunda de test --------------------------------------
+
+    @Test
+    @DisplayName("test compara null: solo es igual a null")
+    void test_nullEquality() {
+        Map<String, Object> doc = map("foo", null);
+
+        assertThat(JsonPatch.apply(doc, List.of(op("test", "/foo", null)))).isEqualTo(doc);
+        assertThatThrownBy(() -> JsonPatch.apply(doc, List.of(op("test", "/foo", "x"))))
+                .isInstanceOf(JsonPatchTestFailedException.class);
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "x"), List.of(op("test", "/foo", null))))
+                .isInstanceOf(JsonPatchTestFailedException.class);
+    }
+
+    @Test
+    @DisplayName("test compara objetos miembro a miembro, sin importar el orden")
+    void test_objectEquality() {
+        Map<String, Object> doc = map("obj", map("a", 1, "b", List.of(1, 2)));
+
+        assertThat(JsonPatch.apply(doc, List.of(op("test", "/obj", map("b", List.of(1.0, 2), "a", 1)))))
+                .isEqualTo(doc);
+        assertThatThrownBy(() -> JsonPatch.apply(doc, List.of(op("test", "/obj", map("a", 1)))))
+                .as("distinto número de miembros").isInstanceOf(JsonPatchTestFailedException.class);
+        assertThatThrownBy(() -> JsonPatch.apply(doc, List.of(op("test", "/obj", map("a", 1, "c", List.of(1, 2))))))
+                .as("miembro que falta").isInstanceOf(JsonPatchTestFailedException.class);
+        assertThatThrownBy(() -> JsonPatch.apply(doc, List.of(op("test", "/obj", map("a", 2, "b", List.of(1, 2))))))
+                .as("miembro con otro valor").isInstanceOf(JsonPatchTestFailedException.class);
+    }
+
+    @Test
+    @DisplayName("test compara arrays elemento a elemento y en orden")
+    void test_arrayEquality() {
+        Map<String, Object> doc = map("items", List.of("a", "b"));
+
+        assertThat(JsonPatch.apply(doc, List.of(op("test", "/items", List.of("a", "b"))))).isEqualTo(doc);
+        assertThatThrownBy(() -> JsonPatch.apply(doc, List.of(op("test", "/items", List.of("a")))))
+                .as("distinta longitud").isInstanceOf(JsonPatchTestFailedException.class);
+        assertThatThrownBy(() -> JsonPatch.apply(doc, List.of(op("test", "/items", List.of("b", "a")))))
+                .as("otro orden").isInstanceOf(JsonPatchTestFailedException.class);
+    }
+
+    @Test
+    @DisplayName("test no considera iguales valores de distinto tipo JSON")
+    void test_differentTypesAreNotEqual() {
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "1"), List.of(op("test", "/foo", 1))))
+                .isInstanceOf(JsonPatchTestFailedException.class);
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", List.of()), List.of(op("test", "/foo", map()))))
+                .isInstanceOf(JsonPatchTestFailedException.class);
+    }
 }

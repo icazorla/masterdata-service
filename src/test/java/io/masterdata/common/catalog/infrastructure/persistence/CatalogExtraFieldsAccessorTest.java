@@ -9,9 +9,11 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.Temporal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,6 +34,29 @@ class CatalogExtraFieldsAccessorTest {
         private Boolean featured;
         private LocalDate launchDate;
         private LocalDateTime publishedAt;
+        private Double ratio;
+        private UUID externalId;
+    }
+
+    /** Casos que una entidad real no debería tener, para comprobar que fallan con un mensaje claro. */
+    @Getter
+    @Setter
+    static class BrokenBean {
+        /** {@link Temporal} no tiene {@code parse(CharSequence)}. */
+        private Temporal moment;
+        private Integer failing;
+
+        public String getReadOnly() {
+            return "x";
+        }
+
+        public Integer getFailing() {
+            throw new IllegalStateException("getter failed");
+        }
+
+        public void setFailing(Integer failing) {
+            throw new IllegalStateException("setter failed");
+        }
     }
 
     @Test
@@ -98,6 +123,64 @@ class CatalogExtraFieldsAccessorTest {
                 .isInstanceOf(InvalidCatalogQueryException.class)
                 .hasMessageContaining("'stok'");
         assertThat(bean.getStock()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("convert falla con IllegalStateException si un tipo de fecha no tiene parse(CharSequence)")
+    void convertFailsForTemporalWithoutParse() {
+        assertThatThrownBy(() -> CatalogExtraFieldsAccessor.convert(BrokenBean.class, "moment", "2026-10-13"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("parse(CharSequence)");
+    }
+
+    @Test
+    @DisplayName("dataTypes deduce el tipo JSON de cada campo, y string para enums, UUID y similares")
+    void dataTypesMapsJavaTypes() {
+        assertThat(CatalogExtraFieldsAccessor.dataTypes(SampleBean.class,
+                List.of("label", "stock", "price", "ratio", "featured", "launchDate", "publishedAt", "externalId")))
+                .containsExactly(
+                        Map.entry("label", "string"),
+                        Map.entry("stock", "integer"),
+                        Map.entry("price", "number"),
+                        Map.entry("ratio", "number"),
+                        Map.entry("featured", "boolean"),
+                        Map.entry("launchDate", "date"),
+                        Map.entry("publishedAt", "date-time"),
+                        Map.entry("externalId", "string"));
+        assertThat(CatalogExtraFieldsAccessor.dataType(SampleBean.class, "stock")).isEqualTo("integer");
+    }
+
+    @Test
+    @DisplayName("read devuelve el valor de cada campo, en el orden pedido")
+    void readReturnsValues() {
+        SampleBean bean = new SampleBean();
+        bean.setLabel("acme");
+        bean.setStock(3);
+
+        assertThat(CatalogExtraFieldsAccessor.read(bean, List.of("stock", "label")))
+                .containsExactly(Map.entry("stock", 3), Map.entry("label", "acme"));
+    }
+
+    @Test
+    @DisplayName("read y write envuelven en IllegalStateException el error del getter o del setter")
+    void readAndWriteWrapAccessorFailures() {
+        assertThatThrownBy(() -> CatalogExtraFieldsAccessor.read(new BrokenBean(), List.of("failing")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot read extra field 'failing'");
+        assertThatThrownBy(() -> CatalogExtraFieldsAccessor.write(new BrokenBean(), List.of("failing"), Map.of("failing", 1)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot write extra field 'failing'");
+    }
+
+    @Test
+    @DisplayName("un campo sin setter, o que no es propiedad de la clase, falla con un mensaje que lo nombra")
+    void rejectsFieldsThatAreNotReadWriteProperties() {
+        assertThatThrownBy(() -> CatalogExtraFieldsAccessor.isText(BrokenBean.class, "readOnly"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("'readOnly' is not a JavaBean property with getter and setter");
+        assertThatThrownBy(() -> CatalogExtraFieldsAccessor.isText(SampleBean.class, "missing"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("'missing' is not a JavaBean property with getter and setter");
     }
 
     @Test

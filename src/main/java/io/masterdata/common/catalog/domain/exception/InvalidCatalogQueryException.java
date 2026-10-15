@@ -72,6 +72,13 @@ public class InvalidCatalogQueryException extends InvalidQueryException {
                 "error.query.invalidFilterValue", field, value, dataType);
     }
 
+    /** El payload trae un atributo que no es un campo de este tipo de catálogo (p. ej. una errata). */
+    public static InvalidCatalogQueryException unknownField(String field, Collection<String> allowedFields) {
+        return new InvalidCatalogQueryException(
+                "'" + field + "' is not a field of this catalog type. Allowed extra fields: " + allowedFields,
+                "error.catalog.unknownField", field, allowedFields);
+    }
+
     /**
      * Un campo adicional del payload de creación/actualización trae un valor que no se puede
      * convertir a su tipo (p. ej. {@code "ineCode": "abc"}). También 422: el JSON es válido,

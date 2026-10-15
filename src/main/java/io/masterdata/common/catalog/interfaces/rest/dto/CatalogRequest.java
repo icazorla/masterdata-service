@@ -14,6 +14,7 @@ import lombok.Setter;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * {@code @AllArgsConstructor(access = PACKAGE)} en vez de público (el valor por defecto):
@@ -66,8 +67,16 @@ public class CatalogRequest {
         return extraFields;
     }
 
+    /**
+     * Atributos de {@link CatalogAdminResponse} que asigna el servidor: se ignoran para que un formulario
+     * pueda reenviar tal cual lo que recibió. Cualquier otro atributo desconocido se rechaza al guardar.
+     */
+    private static final Set<String> READ_ONLY_FIELDS = Set.of("id", "type", "createdAt", "updatedAt");
+
     @JsonAnySetter
     public void setExtraField(String name, Object value) {
-        extraFields.put(name, value);
+        if (!READ_ONLY_FIELDS.contains(name)) {
+            extraFields.put(name, value);
+        }
     }
 }

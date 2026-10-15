@@ -89,6 +89,18 @@ class CatalogExtraFieldsAccessorTest {
     }
 
     @Test
+    @DisplayName("write rechaza un atributo que no es un campo del tipo, sin escribir nada")
+    void writeRejectsUnknownFields() {
+        SampleBean bean = new SampleBean();
+        bean.setStock(7);
+
+        assertThatThrownBy(() -> CatalogExtraFieldsAccessor.write(bean, List.of("stock"), Map.of("stok", 42)))
+                .isInstanceOf(InvalidCatalogQueryException.class)
+                .hasMessageContaining("'stok'");
+        assertThat(bean.getStock()).isEqualTo(7);
+    }
+
+    @Test
     @DisplayName("isText solo es cierto para propiedades String")
     void isTextOnlyForStrings() {
         assertThat(CatalogExtraFieldsAccessor.isText(SampleBean.class, "label")).isTrue();

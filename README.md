@@ -486,17 +486,13 @@ mvn spring-boot:run
 ```
 La app arranca en http://localhost:8080.
 
-Para cargar las 19 comunidades/ciudades autónomas y las 52 provincias de España (con la app arrancada):
+Para cargar las 19 comunidades/ciudades autónomas y las 52 provincias de España, con sus traducciones en/es y sus códigos INE, ejecuta [scripts/seed-catalogs.sql](scripts/seed-catalogs.sql) contra la base de datos. Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes:
 
 ```bash
-./scripts/seed-catalogs.sh
+psql -h localhost -U postgres -d postgres -f scripts/seed-catalogs.sql
 ```
 
-En Windows: `.\scripts\seed-catalogs.ps1`. Los datos (con sus códigos INE) están en `scripts/data/spain-regions.csv` y `scripts/data/spain-provinces.csv`, compartidos por ambos scripts. Usan la API de gestión con el usuario de desarrollo `admin`/`admin`; para otro usuario, define `SEED_USER` y `SEED_PASSWORD` (o, en PowerShell, `-User`/`-Password`).
-
-> Los scripts aún intentan crear marcas y categorías de ejemplo; como los tipos `brand` y `category` ya no están configurados, esas altas fallan con 400 y aparecen como `[skip]`, sin afectar al resto.
-
-Si las comunidades/provincias ya existen pero les faltan traducciones, [scripts/data/fill-spain-translations.sql](scripts/data/fill-spain-translations.sql) inserta las que falten (en/es) enlazando por `ine_code`. Solo inserta: se puede ejecutar varias veces.
+Solo inserta lo que falta (entradas por `ine_code` y traducciones por entrada e idioma): no borra ni modifica nada y se puede ejecutar varias veces. Como escribe directamente en la base de datos, si la caché está activada reinicia la app (o vacíala con `DELETE /actuator/caches`) para ver los datos nuevos.
 
 ## API Docs (Swagger)
 - Swagger UI: http://localhost:8080/swagger-ui.html — un desplegable arriba a la derecha permite cambiar entre las dos APIs.

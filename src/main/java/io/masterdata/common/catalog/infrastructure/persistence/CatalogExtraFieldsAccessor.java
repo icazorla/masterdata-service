@@ -93,9 +93,17 @@ final class CatalogExtraFieldsAccessor {
      * {@code weight}/{@code translations}, esto sobrescribe el campo por completo, no lo fusiona).
      * Cada valor se convierte antes al tipo de la propiedad (ver {@link #toPropertyType}).
      *
-     * @throws InvalidCatalogQueryException si un valor no se puede convertir al tipo de su campo
+     * @throws InvalidCatalogQueryException si {@code values} trae una clave que no es ninguno de
+     *         {@code fieldNames} (p. ej. {@code inecode} por {@code ineCode}: sin este chequeo se ignoraría y,
+     *         como la escritura sobrescribe, el campo real quedaría a {@code null}), o un valor que no se
+     *         puede convertir al tipo de su campo. Se comprueba todo antes de escribir nada.
      */
     static void write(Object entity, List<String> fieldNames, Map<String, Object> values) {
+        for (String key : values.keySet()) {
+            if (!fieldNames.contains(key)) {
+                throw InvalidCatalogQueryException.unknownField(key, fieldNames);
+            }
+        }
         for (String fieldName : fieldNames) {
             PropertyDescriptor descriptor = descriptorFor(entity, fieldName);
             Object value = toPropertyType(entity.getClass(), descriptor, values.get(fieldName));

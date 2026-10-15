@@ -1,12 +1,80 @@
--- Rellena las traducciones (en/es) de comunidades autónomas y provincias que falten,
--- enlazando por ine_code con los datos de spain-regions.csv / spain-provinces.csv.
--- Solo inserta lo que falta: no borra ni modifica nada y se puede ejecutar varias veces.
--- Generado a partir de los CSV; no editar a mano.
+-- Carga las 19 comunidades/ciudades autónomas (region) y las 52 provincias (province) de España,
+-- con sus traducciones en/es. ine_code es el código oficial del INE; provinces.region_code es el
+-- ine_code de su comunidad.
+--
+-- PostgreSQL. Las tablas las crea la aplicación al arrancar (spring.jpa.hibernate.ddl-auto: update),
+-- así que hay que arrancarla una vez antes. Solo inserta lo que falta (entradas por ine_code y
+-- traducciones por entrada + idioma): no borra ni modifica nada y se puede ejecutar varias veces.
+--
+--   psql -h localhost -U postgres -d postgres -f scripts/seed-catalogs.sql
 
 begin;
 
+insert into regions (ine_code, weight, enabled, created_at, updated_at)
+select ine_code, 0, true, now(), now()
+from generate_series(1, 19) as ine_code
+on conflict (ine_code) do nothing;
+
+insert into provinces (ine_code, region_code, weight, enabled, created_at, updated_at)
+select v.ine_code, v.region_code, 0, true, now(), now()
+from (values
+    (1, 16),
+    (2, 8),
+    (3, 10),
+    (4, 1),
+    (5, 7),
+    (6, 11),
+    (7, 4),
+    (8, 9),
+    (9, 7),
+    (10, 11),
+    (11, 1),
+    (12, 10),
+    (13, 8),
+    (14, 1),
+    (15, 12),
+    (16, 8),
+    (17, 9),
+    (18, 1),
+    (19, 8),
+    (20, 16),
+    (21, 1),
+    (22, 2),
+    (23, 1),
+    (24, 7),
+    (25, 9),
+    (26, 17),
+    (27, 12),
+    (28, 13),
+    (29, 1),
+    (30, 14),
+    (31, 15),
+    (32, 12),
+    (33, 3),
+    (34, 7),
+    (35, 5),
+    (36, 12),
+    (37, 7),
+    (38, 5),
+    (39, 6),
+    (40, 7),
+    (41, 1),
+    (42, 7),
+    (43, 9),
+    (44, 2),
+    (45, 8),
+    (46, 10),
+    (47, 7),
+    (48, 16),
+    (49, 7),
+    (50, 2),
+    (51, 18),
+    (52, 19)
+) as v(ine_code, region_code)
+on conflict (ine_code) do nothing;
+
 insert into region_translations (region_id, locale, name, description)
-select p.id, v.locale, v.name, v.description
+select r.id, v.locale, v.name, v.description
 from (values
     (1, 'en', 'Andalusia', 'Autonomous community'),
     (1, 'es', 'Andalucía', 'Comunidad autónoma'),
@@ -47,8 +115,8 @@ from (values
     (19, 'en', 'Melilla', 'Autonomous city'),
     (19, 'es', 'Melilla', 'Ciudad autónoma')
 ) as v(ine_code, locale, name, description)
-join regions p on p.ine_code = v.ine_code
-where not exists (select 1 from region_translations t where t.region_id = p.id and t.locale = v.locale);
+join regions r on r.ine_code = v.ine_code
+where not exists (select 1 from region_translations t where t.region_id = r.id and t.locale = v.locale);
 
 insert into province_translations (province_id, locale, name, description)
 select p.id, v.locale, v.name, v.description

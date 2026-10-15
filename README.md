@@ -383,7 +383,26 @@ Todas las respuestas de error tienen el mismo formato, con `message` localizado 
 
 ### 9. Caché
 
-Las lecturas más frecuentes se pueden servir desde una caché en memoria: `GET /admin/api/catalogs`, `GET .../{type}/{id}` y los listados **sin `filter`** (los de los selects; la API de consulta añade internamente `enabled:true`, que no cuenta). **Cada tipo de catálogo tiene sus propias cachés y su propia configuración.** Un alta, modificación o borrado por la API de gestión invalida solo las cachés de ese tipo, al confirmarse la transacción.
+Las lecturas más frecuentes se pueden servir desde una caché en memoria. **Cada tipo de catálogo tiene sus propias cachés y su propia configuración.**
+
+| Caché | Qué guarda | Clave |
+|-------|------------|-------|
+| `catalogTypes` (global) | `GET /admin/api/catalogs`: los tipos y sus campos | — (sale de `application.yml`, solo cambia al reiniciar) |
+| `catalogById:<type>` | `GET /api/catalogs/{type}/{id}` y `GET /admin/api/catalogs/{type}/{id}` (también la lectura previa de un PATCH) | `id` |
+| `catalogLists:<type>` | Listados **sin paginar y sin `filter`**, los que rellenan los selects: `GET /api/catalogs/{type}` (el `enabled:true` que añade la API de consulta no cuenta como filtro) y `GET /admin/api/catalogs/{type}?paged=false` | idioma (`Accept-Language`), filtros, `sortBy` y `sortDirection` |
+
+**No se cachean** los listados paginados (incluido el de la API de gestión por defecto), los listados con `filter` (sus combinaciones no tienen límite) ni los errores (un 404 o un 422 vuelve a consultar la base de datos).
+
+**Invalidación**: un alta, modificación o borrado por la API de gestión invalida solo las cachés de **ese tipo**, y solo al confirmarse la transacción (si falla, la caché no cambia):
+
+| Operación | `catalogById:<type>` | `catalogLists:<type>` |
+|-----------|----------------------|------------------------|
+| POST | — | se vacía entera |
+| PUT / PATCH / DELETE | se borra esa entrada | se vacía entera |
+
+Los listados se vacían enteros porque cualquier cambio (nombre, peso, `enabled`) puede mover la entrada en todos ellos.
+
+**Posible mejora futura**: cachear también los listados **paginados sin `filter`** en `catalogLists:<type>`. Cambian exactamente cuando cambian los listados completos, así que la invalidación actual ya los cubriría; la clave añadiría la página y el tamaño (un número acotado de entradas: con 52 provincias y páginas de 20 son 3 páginas por idioma y orden) y se ahorrarían la consulta de datos y la del total. Bastaría el mismo `@Cacheable` con la misma condición en `CatalogQueryService#findPage`. Hoy no se hace porque la ganancia es pequeña: los listados paginados los usa sobre todo el backoffice, con poco tráfico, y los catálogos son pequeños. Merecería la pena si algún consumidor de la API de consulta empieza a paginar (p. ej. un listado con scroll infinito).
 
 > **Estado actual:** en `application.yml` la caché está **desactivada** (`app.catalog.cache.enabled: false`). Para activarla basta con poner `enabled: true`; la configuración propia de `region` y `province` (tamaño y caducidad de 12 h) ya está declarada.
 

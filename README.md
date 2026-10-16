@@ -15,6 +15,7 @@ API REST (Spring Boot 4.1) para la **gestión genérica de tablas de catálogo**
   - [Caché](#9-caché)
   - [Añadir un nuevo tipo de catálogo](#10-añadir-un-nuevo-tipo-de-catálogo)
   - [Seguridad](#11-seguridad)
+  - [Monitorización (Actuator)](#12-monitorización-actuator)
 - [Stack](#stack) · [Base de datos](#base-de-datos) · [Run](#run) · [Swagger](#api-docs-swagger) · [Build y tests](#build-y-tests) · [Arquitectura](#arquitectura)
 
 ---
@@ -483,6 +484,33 @@ curl -u admin:admin http://localhost:8080/admin/api/catalogs/province
 ```
 
 Los 401/403 usan el mismo formato de error y los mismos mensajes localizados que el resto de la API ([punto 8](#8-errores)). En Swagger UI, la API de gestión muestra el botón **Authorize** para introducir las credenciales.
+
+### 12. Monitorización (Actuator)
+
+Endpoints expuestos (`management.endpoints.web.exposure.include`): `health`, `info`, `metrics` y `caches`. Salvo `health` e `info`, requieren rol `ADMIN` ([punto 11](#11-seguridad)).
+
+| Endpoint | Contenido |
+|----------|-----------|
+| `/actuator/health` | estado de la app y de la base de datos (detalles solo `ADMIN`) |
+| `/actuator/info` | información de build |
+| `/actuator/metrics` | lista de métricas disponibles |
+| `/actuator/caches` | cachés; `DELETE` para vaciarlas ([punto 9](#9-caché)) |
+
+**Pool de conexiones (HikariCP)**: Spring Boot publica sus métricas sin configuración extra, p. ej.:
+
+```bash
+curl -u admin:admin http://localhost:8080/actuator/metrics/hikaricp.connections.active
+curl -u admin:admin http://localhost:8080/actuator/metrics/hikaricp.connections.pending
+```
+
+| Métrica | Significado |
+|---------|-------------|
+| `hikaricp.connections.active` / `.idle` / `.max` / `.min` | conexiones en uso, libres, máximo (`DB_POOL_SIZE`) y mínimo |
+| `hikaricp.connections.pending` | hilos esperando conexión (>0 = pool saturado) |
+| `hikaricp.connections.timeout` | veces que se agotó el tiempo de espera |
+| `hikaricp.connections.acquire` / `.usage` / `.creation` | tiempos de espera, uso y creación |
+
+Todas llevan la etiqueta `pool` con el valor `masterdata-service-pool-<instancia>`, donde `<instancia>` es `INSTANCE_ID`, si no `HOSTNAME` (en Docker/Kubernetes, el contenedor/pod) y, si no, `local`. P. ej. `?tag=pool:masterdata-service-pool-local`; sin la etiqueta, la consulta agrega todos los pools.
 
 ---
 

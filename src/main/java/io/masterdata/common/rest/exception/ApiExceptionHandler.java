@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -145,6 +146,18 @@ public class ApiExceptionHandler {
                 .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
                 .collect(Collectors.toList());
         return build(HttpStatus.BAD_REQUEST, messageSource.getMessage("error.validationFailed", null, locale), errors);
+    }
+
+    /**
+     * No se pudo abrir la transacción porque no hay conexión con la base de datos: el pool está
+     * agotado y venció {@code spring.datasource.hikari.connection-timeout}, o la base de datos no
+     * responde. Es temporal, así que 503 (el cliente puede reintentar) y no un 500.
+     */
+    @ExceptionHandler(CannotCreateTransactionException.class)
+    public ResponseEntity<Map<String, Object>> handleDatabaseUnavailable(CannotCreateTransactionException ex, Locale locale) {
+        log.error("Database unavailable: {}", ex.getMessage());
+        return build(HttpStatus.SERVICE_UNAVAILABLE,
+                messageSource.getMessage("error.databaseUnavailable", null, locale), List.of());
     }
 
     /**

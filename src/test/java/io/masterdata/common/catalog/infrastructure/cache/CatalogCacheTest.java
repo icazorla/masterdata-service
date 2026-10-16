@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -95,6 +96,7 @@ class CatalogCacheTest {
 
     @BeforeEach
     void setUp() {
+        NoOpTransactionManager.begins.set(0);
         cacheManager.getCacheNames().forEach(name -> cacheManager.getCache(name).clear());
         when(repository.findById(REGION, 1L)).thenReturn(Optional.of(logitech));
         when(repository.findById(PROVINCE, 1L)).thenReturn(Optional.of(peripherals));
@@ -118,6 +120,20 @@ class CatalogCacheTest {
 
         verify(repository, times(1)).findById(REGION, 1L);
         assertThat(cacheManager.getCache("catalogById:region").get(1L)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Una lectura servida desde la caché no abre transacción, así que no ocupa una conexión del pool")
+    void cacheHit_doesNotBeginTransaction() {
+        queryService.findById(REGION, 1L);
+        queryService.findAll(REGION, "en", NO_FILTER, "name", "ASC");
+        int beginsAfterMisses = NoOpTransactionManager.begins.get();
+
+        queryService.findById(REGION, 1L);
+        queryService.findAll(REGION, "en", NO_FILTER, "name", "ASC");
+
+        assertThat(beginsAfterMisses).isEqualTo(2);
+        assertThat(NoOpTransactionManager.begins.get()).isEqualTo(beginsAfterMisses);
     }
 
     @Test
@@ -314,6 +330,9 @@ class CatalogCacheTest {
      */
     static class NoOpTransactionManager extends AbstractPlatformTransactionManager {
 
+        /** Transacciones nuevas abiertas: con un gestor real, cada una toma una conexión del pool. */
+        static final AtomicInteger begins = new AtomicInteger();
+
         @Override
         protected Object doGetTransaction() {
             return TransactionSynchronizationManager.isActualTransactionActive();
@@ -326,6 +345,7 @@ class CatalogCacheTest {
 
         @Override
         protected void doBegin(Object transaction, TransactionDefinition definition) {
+            begins.incrementAndGet();
         }
 
         @Override

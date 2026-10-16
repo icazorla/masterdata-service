@@ -1,7 +1,13 @@
 package io.masterdata;
 
+import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+
+import javax.sql.DataSource;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /** Arranca el contexto completo sobre H2 en memoria, como el resto de tests: no necesita PostgreSQL. */
 @SpringBootTest(properties = {
@@ -13,7 +19,20 @@ import org.springframework.boot.test.context.SpringBootTest;
 })
 class ApplicationTests {
 
+    @Autowired
+    private DataSource dataSource;
+
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void connectionPoolUsesConfiguredSettings() {
+        HikariDataSource pool = (HikariDataSource) dataSource;
+
+        assertThat(pool.getMaximumPoolSize()).isEqualTo(10);
+        assertThat(pool.getMinimumIdle()).isEqualTo(10);
+        assertThat(pool.getConnectionTimeout()).isEqualTo(3000);
+        assertThat(pool.getLeakDetectionThreshold()).isEqualTo(2000);
     }
 }

@@ -16,6 +16,7 @@ import org.springframework.cache.transaction.TransactionAwareCacheManagerProxy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.Ordered;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,6 +49,11 @@ import java.util.stream.Collectors;
  *       concurrente no puede recachear el valor antiguo entre la invalidación y el commit.</li>
  * </ul>
  *
+ * <p><b>Antes que la transacción</b>: {@code @EnableCaching} y {@code @Transactional} tienen por
+ * defecto la misma prioridad, así que cuál envuelve a cuál dependería del orden de registro. Se fija
+ * que la caché vaya por fuera: un acierto no abre transacción y, por tanto, no ocupa una conexión
+ * del pool; y los {@code evict} de los comandos se ejecutan al volver del método, ya con el commit hecho.
+ *
  * <p>Estado en Actuator: el estándar {@code /actuator/caches} y las métricas de Micrometer
  * ({@code /actuator/metrics/cache.gets?tag=cache:<nombre>}, {@code cache.size}, ...).
  *
@@ -56,7 +62,7 @@ import java.util.stream.Collectors;
  * {@code spring.cache.*} no aplica a estas cachés.
  */
 @Configuration
-@EnableCaching
+@EnableCaching(order = Ordered.LOWEST_PRECEDENCE - 1) // justo por fuera de @Transactional (LOWEST_PRECEDENCE)
 @EnableConfigurationProperties(CatalogProperties.class)
 @Import(CaffeineCacheProviderConfig.class)
 public class CatalogCacheConfig {

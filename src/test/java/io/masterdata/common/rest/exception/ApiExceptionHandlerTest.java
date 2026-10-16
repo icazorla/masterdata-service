@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.http.MockHttpInputMessage;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 
 import java.util.List;
@@ -79,6 +80,16 @@ class ApiExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody()).containsEntry("message",
                 "The resource cannot be saved or deleted because it is referenced by other records");
+    }
+
+    @Test
+    @DisplayName("Sin conexión con la base de datos (pool agotado o base caída) es 503, sin detalles internos")
+    void databaseUnavailableIs503() {
+        ResponseEntity<Map<String, Object>> response = handler.handleDatabaseUnavailable(
+                new CannotCreateTransactionException("Could not open JPA EntityManager for transaction"), Locale.ENGLISH);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody()).containsEntry("message", "The service is temporarily unavailable. Try again in a few seconds");
     }
 
     @Test

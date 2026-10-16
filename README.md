@@ -380,6 +380,7 @@ Todas las respuestas de error tienen el mismo formato, con `message` localizado 
 | 415 | `Content-Type` no soportado |
 | 422 | Petición bien formada pero no válida para el tipo: `sortBy` no ordenable, filtro no válido, o un campo extra desconocido o con un valor que no encaja |
 | 500 | Error interno |
+| 503 | Sin conexión con la base de datos: el pool está agotado durante más de 3 s o la base de datos no responde. Es temporal; se puede reintentar |
 
 ### 9. Caché
 
@@ -500,6 +501,8 @@ Los 401/403 usan el mismo formato de error y los mismos mensajes localizados que
 
 ## Base de datos
 Por defecto la app se conecta a `jdbc:postgresql://localhost:5432/postgres` (usuario `postgres`, contraseña `secret`, esquema `public`; ver [application.yml](src/main/resources/application.yml)). Hibernate crea/actualiza las tablas automáticamente (`ddl-auto: update`).
+
+Pool de conexiones (HikariCP, `spring.datasource.hikari`): tamaño fijo de 10 conexiones, configurable con la variable de entorno `DB_POOL_SIZE` (instancias × tamaño debe quedar por debajo de `max_connections` de PostgreSQL, 100 por defecto). Si todas están ocupadas, una petición espera como mucho 3 s y después responde **503** en vez de quedarse esperando. Una lectura servida desde la caché no ocupa conexión. Una conexión retenida más de 2 s deja un aviso en el log con la traza de quién la pidió (`leak-detection-threshold`, variable `DB_LEAK_DETECTION_MS`; `0` lo desactiva). Uso del pool en `/actuator/metrics/hikaricp.connections.active` (y `.pending`, `.timeout`).
 
 El repositorio incluye un **devcontainer** ([.devcontainer](.devcontainer)) con Java 21 + Maven y PostgreSQL 16 (puertos 8080 y 5432). Ese contenedor crea la base `ej1` con contraseña `postgres`, que no coincide con los valores por defecto de `application.yml`: ajusta `spring.datasource.*` (o usa variables de entorno como `SPRING_DATASOURCE_URL` y `SPRING_DATASOURCE_PASSWORD`).
 

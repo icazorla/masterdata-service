@@ -13,6 +13,16 @@ spring:
     driverClassName: org.postgresql.Driver
     username: postgres
     password: secret
+    hikari:
+      # Pool de tamaño fijo (lo que recomienda HikariCP). Instancias × tamaño debe quedar por
+      # debajo de max_connections de PostgreSQL (100 por defecto).
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: ${DB_POOL_SIZE:10}
+      # Con el pool agotado, fallar en 3 s (503) en vez de dejar la petición esperando 30 s.
+      connection-timeout: 3000  # ms (Hikari no acepta "3s")
+      # Avisa en el log (WARN, con la traza de quién la pidió) de una conexión retenida más de 2 s:
+      # señal de una fuga o de una transacción demasiado larga. 0 lo desactiva; Hikari ignora valores < 2000.
+      leak-detection-threshold: ${DB_LEAK_DETECTION_MS:2000}
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:

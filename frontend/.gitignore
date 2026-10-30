@@ -42,3 +42,6 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Node downloaded by the Maven "ui" profile (frontend-maven-plugin)
+/node/

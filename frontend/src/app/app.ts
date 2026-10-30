@@ -19,6 +19,8 @@ export class App {
   private readonly api = inject(CatalogApi);
 
   protected readonly langs = Object.entries(LANGS).map(([code, name]) => ({ code, name }));
+  /** Card icon tile colors (background, text), cycled by position. */
+  protected readonly tiles = [['#e6f1fb', '#0c447c'], ['#e1f5ee', '#085041'], ['#eeedfe', '#3c3489'], ['#faece7', '#712b13']];
   protected user = 'admin';
   protected password = '';
   protected readonly types = signal<CatalogType[]>([]);
@@ -32,6 +34,11 @@ export class App {
       this.i18n.lang();
       untracked(() => this.auth.header() && this.loadTypes());
     });
+  }
+
+  /** Fields shown as chips on a card: the translatable ones (name, description) and the type's own extras. */
+  protected chips(type: CatalogType) {
+    return type.fields.filter((f) => f.translatable || f.extra).map((f) => f.name);
   }
 
   protected login() {

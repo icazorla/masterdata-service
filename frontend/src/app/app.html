@@ -30,9 +30,32 @@
       <button type="submit">{{ i18n.t('signIn') }}</button>
     </form>
   } @else if (selected(); as type) {
+    <button type="button" class="back" (click)="selectedCode.set(null)">{{ i18n.t('backToCatalogs') }}</button>
     <h2>{{ type.name }}</h2>
     <app-catalog-crud [type]="type" />
   } @else {
-    <p>{{ i18n.t('pickCatalogHint') }}</p>
+    <section class="hero">
+      <h2>{{ i18n.t('homeTitle') }}</h2>
+      <p>{{ i18n.t('homeHint') }}</p>
+    </section>
+    <div class="cards">
+      @for (t of types(); track t.type; let i = $index) {
+        <button type="button" class="card" (click)="selectedCode.set(t.type)">
+          <span class="top">
+            <span class="tile" [style.background]="tiles[i % tiles.length][0]" [style.color]="tiles[i % tiles.length][1]" aria-hidden="true">{{ t.name.charAt(0).toUpperCase() }}</span>
+            <span>
+              <h3>{{ t.name }}</h3>
+              <span class="code">{{ t.type }}</span>
+            </span>
+          </span>
+          <span class="chips">
+            @for (f of chips(t); track f) {
+              <span class="chip">{{ f }}</span>
+            }
+          </span>
+          <span class="foot">{{ i18n.t('manage') }} →</span>
+        </button>
+      }
+    </div>
   }
 </main>

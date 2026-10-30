@@ -53,6 +53,11 @@ export class CatalogCrud {
     this.query.update((q) => ({ ...q, filters: this.filters(), page: 0 }));
   }
 
+  protected clearSearch() {
+    this.filters.set({});
+    this.applySearch();
+  }
+
   protected setFilter(field: string, value: string) {
     this.filters.update((f) => ({ ...f, [field]: value }));
   }

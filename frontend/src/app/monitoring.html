@@ -80,6 +80,7 @@
           <thead>
             <tr>
               <th>{{ i18n.t('catalog') }}</th>
+              <th class="num">{{ i18n.t('requests') }}</th>
               <th class="num">{{ i18n.t('reqPerSecShort') }}</th>
               <th class="num">{{ i18n.t('avgTime') }}</th>
               <th class="num">p95</th>
@@ -93,6 +94,7 @@
             @for (r of s.requests; track r.type) {
               <tr>
                 <td>{{ r.name }} <span class="code">{{ r.type }}</span></td>
+                <td class="num">{{ num(r.count) }}</td>
                 <td class="num">{{ num(catalogRates()[r.type], 1) }}</td>
                 <td class="num">{{ ms(r.avgMs) }}</td>
                 <td class="num">{{ r.p95Ms == null ? '—' : ms(r.p95Ms) }}</td>

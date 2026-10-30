@@ -6,6 +6,10 @@
   }
 </div>
 
+@if (unreachable()) {
+  <p class="error" role="alert">{{ i18n.t('actuatorUnreachable') }}</p>
+}
+
 @if (snapshot(); as s) {
   <div class="stats">
     <div class="stat">

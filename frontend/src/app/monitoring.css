@@ -2,6 +2,7 @@
 .bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 .auto { display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
 .muted { color: #5b6573; font-size: .85rem; }
+.error { color: #b42318; background: #fef3f2; border: 1px solid #fda29b; padding: .5rem .75rem; border-radius: 4px; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; }
 .stat { display: flex; flex-direction: column; gap: .25rem; background: #fff; border: 1px solid #e3e6ea; border-radius: 12px; padding: 1rem; }
 .label { font-size: .8rem; color: #5b6573; }

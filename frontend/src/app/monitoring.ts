@@ -31,6 +31,11 @@ export class Monitoring {
     const s = this.snapshot();
     return s?.heapUsed != null && s.heapMax ? (s.heapUsed / s.heapMax) * 100 : null;
   });
+  /** Neither health nor uptime could be read: /actuator isn't reachable (not proxied, backend down, not ADMIN). */
+  protected readonly unreachable = computed(() => {
+    const s = this.snapshot();
+    return !!s && s.health == null && s.uptimeSeconds == null;
+  });
   protected readonly anyRequests = computed(() => this.snapshot()?.requests.some((r) => r.count > 0) ?? false);
 
   constructor() {

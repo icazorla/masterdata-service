@@ -48,6 +48,10 @@ export class CatalogCrud {
     return inputTypes[dataType];
   }
 
+  protected formatDate(iso: string) {
+    return new Date(iso).toLocaleString(this.i18n.lang());
+  }
+
   protected arrow(field: string) {
     const q = this.query();
     return q.sortBy === field ? (q.sortDirection === 'ASC' ? ' ▲' : ' ▼') : '';

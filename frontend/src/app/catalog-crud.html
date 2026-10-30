@@ -116,6 +116,14 @@
       <label>{{ i18n.t('weight') }} <input name="weight" type="number" [(ngModel)]="ed.draft.weight" /></label>
       <label class="check"><input name="enabled" type="checkbox" [(ngModel)]="ed.draft.enabled" /> {{ i18n.t('enabled') }}</label>
 
+      @if (ed.entry; as entry) {
+        <div class="meta">
+          <label>{{ i18n.t('createdAt') }} <input readonly [value]="formatDate(entry.createdAt)" /></label>
+          <label>{{ i18n.t('updatedAt') }} <input readonly [value]="formatDate(entry.updatedAt)" /></label>
+          <label>{{ i18n.t('version') }} <input readonly [value]="entry.version" /></label>
+        </div>
+      }
+
       @if (error(); as message) {
         <p class="error" role="alert">{{ message }}</p>
       }

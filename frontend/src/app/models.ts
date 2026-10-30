@@ -30,6 +30,8 @@ export interface CatalogEntry {
   weight: number;
   enabled: boolean;
   translations: Record<string, Translation>;
+  createdAt: string;
+  updatedAt: string;
   version: number;
   [extra: string]: unknown;
 }

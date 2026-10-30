@@ -77,7 +77,10 @@
 
 <div class="pager">
   <button type="button" [disabled]="query().page === 0" (click)="goTo(query().page - 1)">{{ i18n.t('prev') }}</button>
-  <span>{{ i18n.t('page', query().page + 1, pages(), page.value()?.total ?? 0) }}</span>
+  <label>{{ i18n.t('page') }}
+    <input type="number" min="1" [max]="pages()" [value]="query().page + 1" (change)="jump($any($event.target))" />
+    / {{ pages() }} · {{ i18n.t('entries', page.value()?.total ?? 0) }}
+  </label>
   <button type="button" [disabled]="query().page + 1 >= pages()" (click)="goTo(query().page + 1)">{{ i18n.t('next') }}</button>
   <select [ngModel]="query().size" (ngModelChange)="setSize($event)" [attr.aria-label]="i18n.t('pageSize')">
     @for (s of pageSizes; track s) {

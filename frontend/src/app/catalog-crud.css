@@ -10,6 +10,7 @@ tbody.loading { opacity: .5; }
 .actions { white-space: nowrap; text-align: right; }
 .sort { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; cursor: pointer; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }
+.pager input { width: 4.5rem; }
 .error { color: #b42318; background: #fef3f2; border: 1px solid #fda29b; padding: .5rem .75rem; border-radius: 4px; }
 .backdrop { position: fixed; inset: 0; background: #0006; display: grid; place-items: center; overflow: auto; padding: 1rem; }
 .dialog { background: #fff; border-radius: 8px; padding: 1.5rem; width: min(560px, 100%); max-height: 100%; overflow: auto; display: grid; gap: .75rem; }

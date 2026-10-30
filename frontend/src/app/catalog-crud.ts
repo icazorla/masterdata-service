@@ -79,6 +79,13 @@ export class CatalogCrud {
     this.query.update((q) => ({ ...q, size, page: 0 }));
   }
 
+  /** Page typed by the user (1-based): clamped to the existing pages, and the input shows the clamped value. */
+  protected jump(input: HTMLInputElement) {
+    const page = Math.min(this.pages(), Math.max(1, Math.trunc(Number(input.value)) || 1));
+    input.value = String(page);
+    this.goTo(page - 1);
+  }
+
   protected goTo(page: number) {
     this.query.update((q) => ({ ...q, page }));
   }

@@ -1,0 +1,35 @@
+:host { display: block; }
+.bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.auto { display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
+.muted { color: #5b6573; font-size: .85rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; }
+.stat { display: flex; flex-direction: column; gap: .25rem; background: #fff; border: 1px solid #e3e6ea; border-radius: 12px; padding: 1rem; }
+.label { font-size: .8rem; color: #5b6573; }
+.value { font-size: 1.5rem; font-weight: 600; }
+.value small { font-size: .85rem; font-weight: 400; color: #5b6573; }
+.ok { color: #067647; }
+.bad { color: #b42318; }
+.bar-track { height: 6px; border-radius: 3px; background: #e3e6ea; overflow: hidden; }
+.bar-fill { display: block; height: 100%; background: #1a56db; }
+.chips { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 0; }
+.chip { font-size: .8rem; padding: .2rem .6rem; border-radius: 6px; background: #f0f2f5; }
+.chip.ok { background: #ecfdf3; }
+.chip.bad { background: #fef3f2; }
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; margin-top: 1rem; }
+.panel { background: #fff; border: 1px solid #e3e6ea; border-radius: 12px; padding: 1rem 1.25rem; }
+.panel.wide { grid-column: 1 / -1; }
+.panel h3 { margin: 0 0 .75rem; font-size: 1rem; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; }
+.panel-head h3 { margin: 0; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #e3e6ea; }
+th { background: #f0f2f5; font-weight: 600; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.code { font-family: ui-monospace, monospace; font-size: .8rem; color: #5b6573; }
+.actions { text-align: right; }
+dl { display: grid; grid-template-columns: 1fr auto; gap: .5rem 1rem; margin: 0; }
+dt { color: #5b6573; }
+dd { margin: 0; font-weight: 600; text-align: right; }
+button { padding: .4rem .8rem; border: 1px solid #c4cad2; background: #fff; border-radius: 4px; cursor: pointer; font: inherit; }
+button.danger { color: #b42318; border-color: #fda29b; }
+button:disabled { opacity: .5; cursor: default; }

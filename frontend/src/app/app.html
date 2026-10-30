@@ -1,7 +1,11 @@
 <header>
   <h1>{{ i18n.t('appTitle') }}</h1>
   @if (auth.header()) {
-    <select [ngModel]="selectedCode()" (ngModelChange)="selectedCode.set($event)" [attr.aria-label]="i18n.t('catalog')">
+    <nav>
+      <button type="button" [class.active]="view() === 'catalogs'" (click)="showCatalogs()">{{ i18n.t('navCatalogs') }}</button>
+      <button type="button" [class.active]="view() === 'monitoring'" (click)="view.set('monitoring')">{{ i18n.t('navMonitoring') }}</button>
+    </nav>
+    <select [ngModel]="selectedCode()" (ngModelChange)="open($event)" [attr.aria-label]="i18n.t('catalog')">
       <option [ngValue]="null" disabled>{{ i18n.t('selectCatalog') }}</option>
       @for (t of types(); track t.type) {
         <option [ngValue]="t.type">{{ t.name }}</option>
@@ -29,6 +33,9 @@
       <label>{{ i18n.t('password') }} <input name="password" type="password" [(ngModel)]="password" autocomplete="current-password" required /></label>
       <button type="submit">{{ i18n.t('signIn') }}</button>
     </form>
+  } @else if (view() === 'monitoring') {
+    <h2>{{ i18n.t('navMonitoring') }}</h2>
+    <app-monitoring [types]="types()" />
   } @else if (selected(); as type) {
     <button type="button" class="back" (click)="selectedCode.set(null)">{{ i18n.t('backToCatalogs') }}</button>
     <h2>{{ type.name }}</h2>
@@ -40,7 +47,7 @@
     </section>
     <div class="cards">
       @for (t of types(); track t.type; let i = $index) {
-        <button type="button" class="card" (click)="selectedCode.set(t.type)">
+        <button type="button" class="card" (click)="open(t.type)">
           <span class="top">
             <span class="tile" [style.background]="tiles[i % tiles.length][0]" [style.color]="tiles[i % tiles.length][1]" aria-hidden="true">{{ t.name.charAt(0).toUpperCase() }}</span>
             <span>

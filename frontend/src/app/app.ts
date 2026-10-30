@@ -6,10 +6,11 @@ import { CatalogApi, errorMessage } from './catalog-api';
 import { CatalogCrud } from './catalog-crud';
 import { I18n, LANGS } from './i18n';
 import { CatalogType } from './models';
+import { Monitoring } from './monitoring';
 
 @Component({
   selector: 'app-root',
-  imports: [FormsModule, CatalogCrud],
+  imports: [FormsModule, CatalogCrud, Monitoring],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -27,6 +28,7 @@ export class App {
   protected readonly selectedCode = signal<string | null>(null);
   protected readonly selected = computed(() => this.types().find((t) => t.type === this.selectedCode()));
   protected readonly error = signal<string | null>(null);
+  protected readonly view = signal<'catalogs' | 'monitoring'>('catalogs');
 
   constructor() {
     // Type names come translated by the backend (Accept-Language): load them at startup and on every language change.
@@ -41,6 +43,17 @@ export class App {
     return type.fields.filter((f) => f.translatable || f.extra).map((f) => f.name);
   }
 
+  /** Opens a catalog's CRUD (also from the monitoring view). */
+  protected open(code: string) {
+    this.selectedCode.set(code);
+    this.view.set('catalogs');
+  }
+
+  protected showCatalogs() {
+    this.selectedCode.set(null);
+    this.view.set('catalogs');
+  }
+
   protected login() {
     this.auth.login(this.user, this.password);
     this.password = '';
@@ -51,6 +64,7 @@ export class App {
     this.auth.logout();
     this.types.set([]);
     this.selectedCode.set(null);
+    this.view.set('catalogs');
   }
 
   private loadTypes() {

@@ -498,6 +498,8 @@ Endpoints expuestos (`management.endpoints.web.exposure.include`): `health`, `in
 | `/actuator/metrics` | lista de métricas disponibles |
 | `/actuator/caches` | cachés; `DELETE` para vaciarlas ([punto 9](#9-caché)) |
 
+**Peticiones por catálogo**: `http.server.requests` lleva además la etiqueta `catalog` (el tipo, o `none` fuera de `/{type}`; `CatalogRequestObservationConvention`), porque su `uri` es solo la plantilla `/api/catalogs/{type}`. P. ej. `/actuator/metrics/http.server.requests?tag=catalog:province` (añadir `&tag=outcome:CLIENT_ERROR` para los 4xx). La interfaz web (`frontend/`, sección Monitorización) las muestra junto al estado, la JVM, el pool y las cachés (con botón para vaciarlas).
+
 **Pool de conexiones (HikariCP)**: Spring Boot publica sus métricas sin configuración extra, p. ej.:
 
 ```bash

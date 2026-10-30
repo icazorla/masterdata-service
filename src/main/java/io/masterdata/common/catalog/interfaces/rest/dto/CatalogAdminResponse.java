@@ -3,7 +3,7 @@ package io.masterdata.common.catalog.interfaces.rest.dto;
 import io.masterdata.common.catalog.domain.CatalogType;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -22,8 +22,8 @@ public record CatalogAdminResponse(
         boolean enabled,
         Map<String, CatalogTranslationResponse> translations,
         Map<String, Object> extraFields,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt,
+        Instant createdAt,
+        Instant updatedAt,
         Long version
 ) {
     @JsonAnyGetter

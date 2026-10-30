@@ -95,6 +95,23 @@ class CatalogFilterTest {
     }
 
     @Test
+    @DisplayName("Más de MAX_CONDITIONS condiciones o de MAX_VALUES valores en una condición es 422; el límite exacto vale")
+    void limitsAreEnforced() {
+        String values = String.join(",", java.util.Collections.nCopies(CatalogFilter.MAX_VALUES, "a"));
+        String conditions = String.join(";", java.util.Collections.nCopies(CatalogFilter.MAX_CONDITIONS, "name:a"));
+
+        assertThat(CatalogFilter.parse("name:" + values)).singleElement()
+                .satisfies(f -> assertThat(f.values()).hasSize(CatalogFilter.MAX_VALUES));
+        assertThat(CatalogFilter.parse(conditions)).hasSize(CatalogFilter.MAX_CONDITIONS);
+        assertThatThrownBy(() -> CatalogFilter.parse("name:" + values + ",a"))
+                .isInstanceOf(InvalidCatalogQueryException.class)
+                .hasMessageContaining("name");
+        assertThatThrownBy(() -> CatalogFilter.parse(conditions + ";name:a"))
+                .isInstanceOf(InvalidCatalogQueryException.class)
+                .hasMessageContaining(String.valueOf(CatalogFilter.MAX_CONDITIONS));
+    }
+
+    @Test
     @DisplayName("Operadores por tipo de dato: contains en texto, eq en booleanos, eq y rangos en números y fechas")
     void supportedOperatorsByDataType() {
         assertThat(Operator.supportedNames("string")).containsExactly("contains");

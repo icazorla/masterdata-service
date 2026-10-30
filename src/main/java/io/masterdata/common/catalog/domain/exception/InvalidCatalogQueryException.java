@@ -65,6 +65,20 @@ public class InvalidCatalogQueryException extends InvalidQueryException {
                 "error.query.multipleRangeValues", key);
     }
 
+    /** {@code filter} trae más de {@code max} condiciones. */
+    public static InvalidCatalogQueryException tooManyFilterConditions(int max) {
+        return new InvalidCatalogQueryException(
+                "Too many filter conditions: at most " + max + " allowed",
+                "error.query.tooManyFilterConditions", max);
+    }
+
+    /** Una condición de {@code filter} trae más de {@code max} valores separados por comas. */
+    public static InvalidCatalogQueryException tooManyFilterValues(String key, int max) {
+        return new InvalidCatalogQueryException(
+                "Filter '" + key + "' has too many values: at most " + max + " allowed",
+                "error.query.tooManyFilterValues", key, max);
+    }
+
     /** {@code value} no se puede convertir al tipo del campo filtrado. */
     public static InvalidCatalogQueryException invalidFilterValue(String field, String value, String dataType) {
         return new InvalidCatalogQueryException(

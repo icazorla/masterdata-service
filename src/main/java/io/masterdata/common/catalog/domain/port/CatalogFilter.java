@@ -44,6 +44,14 @@ public record CatalogFilter(String field, Operator operator, List<String> values
     public static final String ENABLED = "enabled";
     public static final Set<String> COMMON_FIELDS = Set.of(NAME, DESCRIPTION, ENABLED);
 
+    /**
+     * Límites de una expresión {@code filter}: la API de consulta es pública y cada valor es un
+     * parámetro (y en texto un {@code like}) más en la consulta, así que sin tope una sola petición
+     * podría generar miles.
+     */
+    public static final int MAX_CONDITIONS = 10;
+    public static final int MAX_VALUES = 20;
+
     public CatalogFilter {
         values = List.copyOf(values);
     }
@@ -115,8 +123,9 @@ public record CatalogFilter(String field, Operator operator, List<String> values
     /**
      * Las condiciones de una expresión {@code filter} (ver la sintaxis arriba), en el orden escrito.
      * {@code null} o vacía no filtra. Lanza {@link InvalidCatalogQueryException} si una condición no
-     * tiene {@code :}, si un sufijo no es un operador conocido o si un operador de rango recibe más
-     * de un valor.
+     * tiene {@code :}, si un sufijo no es un operador conocido, si un operador de rango recibe más
+     * de un valor o si se superan {@link #MAX_CONDITIONS} condiciones o {@link #MAX_VALUES} valores
+     * en una condición.
      */
     public static List<CatalogFilter> parse(String expression) {
         List<CatalogFilter> filters = new ArrayList<>();
@@ -148,7 +157,13 @@ public record CatalogFilter(String field, Operator operator, List<String> values
             if (operator.isRange() && values.size() > 1) {
                 throw InvalidCatalogQueryException.multipleRangeValues(key);
             }
+            if (values.size() > MAX_VALUES) {
+                throw InvalidCatalogQueryException.tooManyFilterValues(key, MAX_VALUES);
+            }
             filters.add(new CatalogFilter(field, operator, values));
+            if (filters.size() > MAX_CONDITIONS) {
+                throw InvalidCatalogQueryException.tooManyFilterConditions(MAX_CONDITIONS);
+            }
         }
         return List.copyOf(filters);
     }

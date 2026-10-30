@@ -454,6 +454,22 @@ class CatalogRepositoryAdapterTest {
                 .extracting(c -> c.translation("en").get().name()).containsExactly("Logitech", "Samsung");
     }
 
+    @ParameterizedTest(name = "[{0}] %, _ y \\ en el filtro de texto son literales, no comodines")
+    @MethodSource("catalogTypes")
+    void findAll_textFilterTreatsLikeWildcardsAsLiterals(CatalogType type) {
+        adapter.save(sample(type, "Acme 50% off", null));
+        adapter.save(sample(type, "snake_case", null));
+        adapter.save(sample(type, "back\\slash", null));
+        adapter.save(sample(type, "Samsung", null));
+
+        assertThat(adapter.findAll(type, "en", new CatalogSearchCriteria(List.of(new CatalogFilter("name", "%"))), "name", "ASC"))
+                .extracting(c -> c.translation("en").get().name()).containsExactly("Acme 50% off");
+        assertThat(adapter.findAll(type, "en", new CatalogSearchCriteria(List.of(new CatalogFilter("name", "_"))), "name", "ASC"))
+                .extracting(c -> c.translation("en").get().name()).containsExactly("snake_case");
+        assertThat(adapter.findAll(type, "en", new CatalogSearchCriteria(List.of(new CatalogFilter("name", "\\"))), "name", "ASC"))
+                .extracting(c -> c.translation("en").get().name()).containsExactly("back\\slash");
+    }
+
     @ParameterizedTest(name = "[{0}] findAll devuelve vacío cuando ningún nombre coincide con el filtro")
     @MethodSource("catalogTypes")
     void findAll_returnsEmptyWhenNameFilterMatchesNothing(CatalogType type) {

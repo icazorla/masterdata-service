@@ -62,7 +62,7 @@ Cada entrada de catálogo tiene:
 | `weight`      | entero     | no        | Peso para ordenación manual (p. ej. destacar entradas). Por defecto `0` |
 | `enabled`     | booleano   | no        | Si la entrada está activa. Por defecto `true`. Las desactivadas no salen en los listados de la API de consulta, pero siguen resolviéndose por id |
 | campos extra  | según tipo | no        | Propios de cada tipo (p. ej. `ineCode` en `province`) |
-| `createdAt` / `updatedAt` | fecha-hora | — | Gestionados automáticamente |
+| `createdAt` / `updatedAt` | fecha-hora | — | Gestionados automáticamente. En UTC (ISO-8601 con `Z`) |
 | `version`     | entero     | —         | Sube en cada modificación. Sirve para no pisar cambios de otra persona (ver abajo) |
 
 ### 2. Operaciones disponibles
@@ -166,8 +166,8 @@ Cada entrada de catálogo tiene:
   },
   "ineCode": 41,
   "regionCode": 1,
-  "createdAt": "2026-10-01T10:00:00",
-  "updatedAt": "2026-10-01T10:00:00",
+  "createdAt": "2026-10-01T10:00:00Z",
+  "updatedAt": "2026-10-01T10:00:00Z",
   "version": 3
 }
 ```
@@ -219,9 +219,11 @@ Campos filtrables:
 - `\;`, `\,` y `\\` son un `;`, una `,` y una `\` literales. Los `:` dentro del valor no necesitan escape (solo cuenta el primero), así que valen URLs y fechas con hora.
 - En la URL hay que codificar los caracteres especiales, p. ej. `#` → `%23` o espacio → `%20` (Swagger UI lo hace solo).
 - Los operadores de cada campo se publican en `filterOperators` de `GET /admin/api/catalogs` (`contains` para texto, `eq` para booleanos, `eq`/`gt`/`gte`/`lt`/`lte` para números y fechas).
+- En texto, `%`, `_` y `\` son caracteres literales, no comodines: `name:50%` busca nombres que contienen "50%".
+- Como máximo 10 condiciones por `filter` y 20 valores por condición.
 - Las condiciones y los valores vacíos se ignoran; sin `filter` devuelve todas las entradas del tipo (en la API de consulta, todas las activas).
 - `GET /api/catalogs/{type}/{id}` devuelve también las entradas desactivadas, para poder mostrar datos que aún las referencian.
-- **422** si una condición no tiene la forma `campo:valor`, si el campo no es filtrable para ese tipo (p. ej. `regionCode` en `region`), si el sufijo no es un operador, si se usa un rango sobre texto o booleano, si un rango trae varios valores, o si el valor no encaja con el tipo del campo (`ineCode:abc`, `enabled:quizá`).
+- **422** si una condición no tiene la forma `campo:valor`, si el campo no es filtrable para ese tipo (p. ej. `regionCode` en `region`), si el sufijo no es un operador, si se usa un rango sobre texto o booleano, si un rango trae varios valores, si se superan los límites de condiciones o valores, o si el valor no encaja con el tipo del campo (`ineCode:abc`, `enabled:quizá`).
 - Un tipo no puede declarar un campo adicional llamado `name`, `description` o `enabled`: la aplicación no arranca.
 
 **Ordenación**
@@ -529,6 +531,15 @@ Todas llevan la etiqueta `pool` con el valor `masterdata-service-pool-<instancia
 
 ## Base de datos
 Por defecto la app se conecta a `jdbc:postgresql://localhost:5432/postgres` (usuario `postgres`, contraseña `secret`, esquema `public`; ver [application.yml](src/main/resources/application.yml)). Hibernate crea/actualiza las tablas automáticamente (`ddl-auto: update`).
+
+`created_at`/`updated_at` son `timestamp with time zone` (un instante, `Instant` en Java). `ddl-auto: update` no cambia el tipo de una columna existente: en una base creada antes de este cambio, con `timestamp` sin zona, conviértelas una vez indicando la zona horaria en la que corría la app:
+
+```sql
+alter table regions   alter column created_at type timestamptz using created_at at time zone 'Europe/Madrid',
+                      alter column updated_at type timestamptz using updated_at at time zone 'Europe/Madrid';
+alter table provinces alter column created_at type timestamptz using created_at at time zone 'Europe/Madrid',
+                      alter column updated_at type timestamptz using updated_at at time zone 'Europe/Madrid';
+```
 
 Pool de conexiones (HikariCP, `spring.datasource.hikari`): tamaño fijo de 10 conexiones, configurable con la variable de entorno `DB_POOL_SIZE` (instancias × tamaño debe quedar por debajo de `max_connections` de PostgreSQL, 100 por defecto). Si todas están ocupadas, una petición espera como mucho 3 s y después responde **503** en vez de quedarse esperando. Una lectura servida desde la caché no ocupa conexión. Una conexión retenida más de 2 s deja un aviso en el log con la traza de quién la pidió (`leak-detection-threshold`, variable `DB_LEAK_DETECTION_MS`; `0` lo desactiva). Uso del pool en `/actuator/metrics/hikaricp.connections.active` (y `.pending`, `.timeout`).
 

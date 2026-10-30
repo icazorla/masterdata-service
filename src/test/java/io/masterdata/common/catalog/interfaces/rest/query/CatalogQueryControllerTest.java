@@ -27,7 +27,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -176,7 +176,7 @@ class CatalogQueryControllerTest {
     @DisplayName("La respuesta de consulta no expone type, weight ni createdAt/updatedAt (solo en la API de gestión)")
     void getAll_responseOmitsAdminOnlyFields() throws Exception {
         Catalog full = Catalog.builder().id(1L).type(TestCatalogTypes.REGION).weight(7)
-                .createdAt(LocalDateTime.of(2026, 10, 1, 10, 0)).updatedAt(LocalDateTime.of(2026, 10, 1, 10, 0))
+                .createdAt(Instant.parse("2026-10-01T10:00:00Z")).updatedAt(Instant.parse("2026-10-01T10:00:00Z"))
                 .translations(List.of(new CatalogTranslation("en", "Logitech", "desc"))).build();
         when(queryService.findAll(TestCatalogTypes.REGION, "en", ONLY_ENABLED, "name", "ASC")).thenReturn(List.of(full));
 

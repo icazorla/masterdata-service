@@ -269,7 +269,7 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
                 if (isTextFilter(d, filter.field())) {
                     List<String> likes = new ArrayList<>();
                     for (int n = 0; n < filter.values().size(); n++) {
-                        likes.add("upper(" + column + ") like upper(" + param + '_' + n + ")");
+                        likes.add("upper(" + column + ") like upper(" + param + '_' + n + ") escape '\\'");
                     }
                     yield "(" + String.join(" or ", likes) + ")";
                 }
@@ -314,14 +314,17 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
     }
 
     /**
-     * Rellena los parámetros de {@link #filterCondition}: en texto, cada valor envuelto en
-     * {@code %}; en el resto, convertido al tipo Java real de la columna (422 si no se puede).
+     * Rellena los parámetros de {@link #filterCondition}: en texto, cada valor con sus {@code %},
+     * {@code _} y {@code \} escapados (son literales, no comodines) y envuelto en {@code %}; en el
+     * resto, convertido al tipo Java real de la columna (422 si no se puede).
      */
     private static void bindFilter(Query query, CatalogTypeDescriptor<?> d, CatalogFilter filter, int index) {
         String param = "f" + index;
         if (filter.operator() == CatalogFilter.Operator.EQ && isTextFilter(d, filter.field())) {
             for (int n = 0; n < filter.values().size(); n++) {
-                query.setParameter(param + '_' + n, "%" + filter.values().get(n) + "%");
+                String literal = filter.values().get(n)
+                        .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                query.setParameter(param + '_' + n, "%" + literal + "%");
             }
             return;
         }

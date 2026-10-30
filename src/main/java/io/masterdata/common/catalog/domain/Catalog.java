@@ -2,7 +2,7 @@ package io.masterdata.common.catalog.domain;
 
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,8 +42,8 @@ public final class Catalog {
     private final int weight;
     private final boolean enabled;
     private final Map<String, Object> extraFields;
-    private final LocalDateTime createdAt;
-    private final LocalDateTime updatedAt;
+    private final Instant createdAt;
+    private final Instant updatedAt;
     private final Long version;
 
     private Catalog(Builder b) {
@@ -110,8 +110,8 @@ public final class Catalog {
         private int weight = 0;
         private boolean enabled = true;
         private Map<String, Object> extraFields = Map.of();
-        private LocalDateTime createdAt;
-        private LocalDateTime updatedAt;
+        private Instant createdAt;
+        private Instant updatedAt;
         private Long version;
 
         public Builder id(Long id) { this.id = id; return this; }
@@ -120,8 +120,8 @@ public final class Catalog {
         public Builder extraFields(Map<String, Object> extraFields) { this.extraFields = extraFields; return this; }
         public Builder weight(int weight) { this.weight = weight; return this; }
         public Builder enabled(boolean enabled) { this.enabled = enabled; return this; }
-        public Builder createdAt(LocalDateTime createdAt) { this.createdAt = createdAt; return this; }
-        public Builder updatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; return this; }
+        public Builder createdAt(Instant createdAt) { this.createdAt = createdAt; return this; }
+        public Builder updatedAt(Instant updatedAt) { this.updatedAt = updatedAt; return this; }
         public Builder version(Long version) { this.version = version; return this; }
 
         public Catalog build() {

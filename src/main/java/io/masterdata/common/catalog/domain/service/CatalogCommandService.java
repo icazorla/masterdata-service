@@ -66,10 +66,6 @@ public class CatalogCommandService {
         return repository.save(updated);
     }
 
-    @Caching(evict = {
-            @CacheEvict(cacheNames = CatalogCacheNames.BY_ID, key = CatalogCacheNames.BY_ID_KEY),
-            @CacheEvict(cacheNames = CatalogCacheNames.LISTS, allEntries = true)
-    })
     /**
      * Borrado <b>lógico</b>: desactiva la entrada ({@code enabled=false}) en lugar de eliminar la
      * fila, porque otros datos pueden seguir referenciándola (ver {@link Catalog}). Idempotente:
@@ -78,6 +74,10 @@ public class CatalogCommandService {
      *
      * @param expectedVersion la versión que el cliente espera borrar; {@code null} no comprueba nada
      */
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CatalogCacheNames.BY_ID, key = CatalogCacheNames.BY_ID_KEY),
+            @CacheEvict(cacheNames = CatalogCacheNames.LISTS, allEntries = true)
+    })
     public void delete(CatalogType type, Long id, Long expectedVersion) {
         Catalog existing = repository.findById(type, id)
                 .orElseThrow(() -> new CatalogNotFoundException(type, id));

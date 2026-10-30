@@ -1,0 +1,109 @@
+import { Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
+
+import { CatalogApi, ListQuery, errorMessage } from './catalog-api';
+import { CatalogEntry, CatalogType, Draft, LOCALES, extraFields, newDraft, toPayload } from './models';
+
+const inputTypes = { string: 'text', integer: 'number', number: 'number', boolean: 'checkbox', date: 'date', 'date-time': 'text' };
+
+/** List + create/edit form + delete for one catalog type. Columns and form fields come from the type's definition. */
+@Component({
+  selector: 'app-catalog-crud',
+  imports: [FormsModule],
+  templateUrl: './catalog-crud.html',
+  styleUrl: './catalog-crud.css',
+})
+export class CatalogCrud {
+  private readonly api = inject(CatalogApi);
+
+  readonly type = input.required<CatalogType>();
+  protected readonly locales = LOCALES;
+  protected readonly extras = computed(() => extraFields(this.type()));
+
+  /** Back to page 0 / default sort whenever another catalog is selected. */
+  protected readonly query = linkedSignal<CatalogType, ListQuery>({
+    source: this.type,
+    computation: () => ({ page: 0, size: 20, sortBy: 'name', sortDirection: 'ASC', search: '' }),
+  });
+  protected search = '';
+
+  protected readonly page = rxResource({
+    params: () => ({ type: this.type().type, query: this.query() }),
+    stream: ({ params }) => this.api.list(params.type, params.query),
+  });
+  protected readonly pages = computed(() => Math.max(1, Math.ceil((this.page.value()?.total ?? 0) / this.query().size)));
+
+  protected readonly editing = signal<{ entry?: CatalogEntry; draft: Draft } | null>(null);
+  protected readonly error = signal<string | null>(null);
+  protected readonly saving = signal(false);
+
+  protected inputType(dataType: keyof typeof inputTypes) {
+    return inputTypes[dataType];
+  }
+
+  protected arrow(field: string) {
+    const q = this.query();
+    return q.sortBy === field ? (q.sortDirection === 'ASC' ? ' ▲' : ' ▼') : '';
+  }
+
+  protected applySearch() {
+    this.query.update((q) => ({ ...q, search: this.search, page: 0 }));
+  }
+
+  protected sortBy(field: string) {
+    this.query.update((q) => ({
+      ...q,
+      sortBy: field,
+      sortDirection: q.sortBy === field && q.sortDirection === 'ASC' ? 'DESC' : 'ASC',
+      page: 0,
+    }));
+  }
+
+  protected goTo(page: number) {
+    this.query.update((q) => ({ ...q, page }));
+  }
+
+  protected create() {
+    this.error.set(null);
+    this.editing.set({ draft: newDraft(this.type()) });
+  }
+
+  protected edit(entry: CatalogEntry) {
+    this.error.set(null);
+    this.editing.set({ entry, draft: newDraft(this.type(), entry) });
+  }
+
+  protected save() {
+    const { entry, draft } = this.editing()!;
+    const body = toPayload(draft);
+    this.saving.set(true);
+    this.error.set(null);
+    const request = entry ? this.api.update(this.type().type, entry, body) : this.api.create(this.type().type, body);
+    request.subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.editing.set(null);
+        this.page.reload();
+      },
+      error: (e) => this.fail(e),
+    });
+  }
+
+  protected remove(entry: CatalogEntry) {
+    const name = entry.translations['en']?.name ?? entry.id;
+    if (!confirm(`Disable "${name}"? It is a logical delete (enabled=false); edit it to restore it.`)) return;
+    this.error.set(null);
+    this.api.delete(this.type().type, entry).subscribe({
+      next: () => this.page.reload(),
+      error: (e) => this.fail(e),
+    });
+  }
+
+  /** 409/412 mean the entry changed under us: show the message and reload so the list has the new version. */
+  private fail(e: unknown) {
+    this.saving.set(false);
+    this.error.set(errorMessage(e));
+    this.page.reload();
+  }
+}

@@ -1,0 +1,31 @@
+<header>
+  <h1>Catalogs</h1>
+  @if (auth.header()) {
+    <select [ngModel]="selectedCode()" (ngModelChange)="selectedCode.set($event)" aria-label="Catalog">
+      <option [ngValue]="null" disabled>Select a catalog…</option>
+      @for (t of types(); track t.type) {
+        <option [ngValue]="t.type">{{ t.name }}</option>
+      }
+    </select>
+    <button type="button" class="logout" (click)="logout()">Sign out</button>
+  }
+</header>
+
+<main>
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+  @if (!auth.header()) {
+    <form class="login" (ngSubmit)="login()">
+      <h2>Sign in</h2>
+      <label>User <input name="user" [(ngModel)]="user" autocomplete="username" required /></label>
+      <label>Password <input name="password" type="password" [(ngModel)]="password" autocomplete="current-password" required /></label>
+      <button type="submit">Sign in</button>
+    </form>
+  } @else if (selected(); as type) {
+    <h2>{{ type.name }}</h2>
+    <app-catalog-crud [type]="type" />
+  } @else {
+    <p>Select a catalog to manage its entries.</p>
+  }
+</main>

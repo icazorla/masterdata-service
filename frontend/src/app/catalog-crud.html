@@ -1,0 +1,108 @@
+<div class="toolbar">
+  <form (ngSubmit)="applySearch()">
+    <input name="search" [(ngModel)]="search" placeholder="Search by name…" />
+    <button type="submit">Search</button>
+  </form>
+  <button type="button" class="primary" (click)="create()">+ New {{ type().name.toLowerCase() }}</button>
+</div>
+
+@if (error(); as message) {
+  @if (!editing()) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+}
+@if (page.error()) {
+  <p class="error" role="alert">Could not load the list.</p>
+}
+
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      @for (l of locales; track l) {
+        <th><button class="sort" (click)="sortBy('name')">Name ({{ l }}){{ arrow('name') }}</button></th>
+      }
+      @for (f of extras(); track f.name) {
+        <th>
+          @if (f.sortable) {
+            <button class="sort" (click)="sortBy(f.name)">{{ f.name }}{{ arrow(f.name) }}</button>
+          } @else {
+            {{ f.name }}
+          }
+        </th>
+      }
+      <th><button class="sort" (click)="sortBy('weight')">Weight{{ arrow('weight') }}</button></th>
+      <th>Enabled</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody [class.loading]="page.isLoading()">
+    @for (e of page.value()?.items; track e.id) {
+      <tr [class.disabled]="!e.enabled">
+        <td>{{ e.id }}</td>
+        @for (l of locales; track l) {
+          <td>{{ e.translations[l]?.name }}</td>
+        }
+        @for (f of extras(); track f.name) {
+          <td>{{ e[f.name] }}</td>
+        }
+        <td>{{ e.weight }}</td>
+        <td>{{ e.enabled ? 'Yes' : 'No' }}</td>
+        <td class="actions">
+          <button type="button" (click)="edit(e)">Edit</button>
+          @if (e.enabled) {
+            <button type="button" class="danger" (click)="remove(e)">Disable</button>
+          }
+        </td>
+      </tr>
+    } @empty {
+      @if (!page.isLoading()) {
+        <tr><td [attr.colspan]="locales.length + extras().length + 4">No entries.</td></tr>
+      }
+    }
+  </tbody>
+</table>
+
+<div class="pager">
+  <button type="button" [disabled]="query().page === 0" (click)="goTo(query().page - 1)">‹ Prev</button>
+  <span>Page {{ query().page + 1 }} / {{ pages() }} · {{ page.value()?.total ?? 0 }} entries</span>
+  <button type="button" [disabled]="query().page + 1 >= pages()" (click)="goTo(query().page + 1)">Next ›</button>
+</div>
+
+@if (editing(); as ed) {
+  <div class="backdrop">
+    <form class="dialog" (ngSubmit)="save()" #f="ngForm">
+      <h2>{{ ed.entry ? 'Edit ' + type().name.toLowerCase() + ' #' + ed.entry.id : 'New ' + type().name.toLowerCase() }}</h2>
+
+      @for (l of locales; track l) {
+        <fieldset>
+          <legend>{{ l }}{{ l === 'en' ? ' (required)' : '' }}</legend>
+          <label>Name
+            <input [name]="'name-' + l" [(ngModel)]="ed.draft.translations[l].name" maxlength="80" [required]="l === 'en'" />
+          </label>
+          <label>Description
+            <textarea [name]="'desc-' + l" [(ngModel)]="ed.draft.translations[l].description" maxlength="500" rows="2"></textarea>
+          </label>
+        </fieldset>
+      }
+
+      @for (x of extras(); track x.name) {
+        <label [class.check]="x.dataType === 'boolean'">{{ x.name }}{{ x.required ? ' *' : '' }}
+          <input [name]="'x-' + x.name" [type]="inputType(x.dataType)" [(ngModel)]="ed.draft.extras[x.name]" [required]="x.required"
+                 [placeholder]="x.dataType === 'date-time' ? 'ISO-8601, e.g. 2024-01-31T10:00:00Z' : ''" />
+        </label>
+      }
+
+      <label>Weight <input name="weight" type="number" [(ngModel)]="ed.draft.weight" /></label>
+      <label class="check"><input name="enabled" type="checkbox" [(ngModel)]="ed.draft.enabled" /> Enabled</label>
+
+      @if (error(); as message) {
+        <p class="error" role="alert">{{ message }}</p>
+      }
+      <div class="buttons">
+        <button type="button" (click)="editing.set(null)">Cancel</button>
+        <button type="submit" class="primary" [disabled]="f.invalid || saving()">{{ saving() ? 'Saving…' : 'Save' }}</button>
+      </div>
+    </form>
+  </div>
+}

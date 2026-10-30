@@ -24,9 +24,11 @@ export class CatalogCrud {
   /** Back to page 0 / default sort whenever another catalog is selected. */
   protected readonly query = linkedSignal<CatalogType, ListQuery>({
     source: this.type,
-    computation: () => ({ page: 0, size: 20, sortBy: 'name', sortDirection: 'ASC', search: '' }),
+    computation: () => ({ page: 0, size: 20, sortBy: 'name', sortDirection: 'ASC', filters: {} }),
   });
-  protected search = '';
+  /** Search inputs, applied to `query` on submit; reset with the query when another catalog is selected. */
+  protected readonly filters = linkedSignal<CatalogType, Record<string, string>>({ source: this.type, computation: () => ({}) });
+  protected readonly filterable = computed(() => this.extras().filter((f) => f.filterOperators.length > 0));
 
   protected readonly page = rxResource({
     params: () => ({ type: this.type().type, query: this.query() }),
@@ -48,7 +50,11 @@ export class CatalogCrud {
   }
 
   protected applySearch() {
-    this.query.update((q) => ({ ...q, search: this.search, page: 0 }));
+    this.query.update((q) => ({ ...q, filters: this.filters(), page: 0 }));
+  }
+
+  protected setFilter(field: string, value: string) {
+    this.filters.update((f) => ({ ...f, [field]: value }));
   }
 
   protected sortBy(field: string) {

@@ -14,7 +14,8 @@ export interface ListQuery {
   size: number;
   sortBy: string;
   sortDirection: 'ASC' | 'DESC';
-  search: string;
+  /** field name → text typed by the user (`name` plus the type's filterable extra fields). */
+  filters: Record<string, string>;
 }
 
 const BASE = '/admin/api/catalogs';
@@ -33,9 +34,13 @@ export class CatalogApi {
       .set('size', q.size)
       .set('sortBy', q.sortBy)
       .set('sortDirection', q.sortDirection);
-    // ';' separates filter conditions, so it can't go inside the search text.
-    const search = q.search.replaceAll(';', ' ').trim();
-    if (search) params = params.set('filter', `name:${search}`);
+    // filter = `field:value` conditions joined by ';' (AND). ';' and '\' inside a value are escaped; ',' is
+    // left alone on purpose: "1,8" means "any of them".
+    const filter = Object.entries(q.filters)
+      .filter(([, v]) => v.trim())
+      .map(([k, v]) => `${k}:${v.trim().replace(/[\\;]/g, '\\$&')}`)
+      .join(';');
+    if (filter) params = params.set('filter', filter);
     return this.http
       .get<CatalogEntry[]>(`${BASE}/${type}`, { params, observe: 'response' })
       .pipe(map((r): Page => ({ items: r.body ?? [], total: Number(r.headers.get('X-Total-Count') ?? 0) })));

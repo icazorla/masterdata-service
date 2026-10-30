@@ -1,6 +1,17 @@
 <div class="toolbar">
   <form (ngSubmit)="applySearch()">
-    <input name="search" [(ngModel)]="search" placeholder="Search by name…" />
+    <input name="name" [ngModel]="filters()['name']" (ngModelChange)="setFilter('name', $event)" placeholder="Name…" />
+    @for (f of filterable(); track f.name) {
+      @if (f.dataType === 'boolean') {
+        <select [name]="f.name" [ngModel]="filters()[f.name] || ''" (ngModelChange)="setFilter(f.name, $event)" [attr.aria-label]="f.name">
+          <option value="">{{ f.name }}: any</option>
+          <option value="true">{{ f.name }}: yes</option>
+          <option value="false">{{ f.name }}: no</option>
+        </select>
+      } @else {
+        <input [name]="f.name" [ngModel]="filters()[f.name]" (ngModelChange)="setFilter(f.name, $event)" [placeholder]="f.name + '… (a,b = any)'" />
+      }
+    }
     <button type="submit">Search</button>
   </form>
   <button type="button" class="primary" (click)="create()">+ New {{ type().name.toLowerCase() }}</button>

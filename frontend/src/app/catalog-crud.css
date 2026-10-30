@@ -1,6 +1,7 @@
 :host { display: block; }
 .toolbar { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
-.toolbar form { display: flex; gap: .5rem; }
+.toolbar form { display: flex; gap: .5rem; flex-wrap: wrap; }
+select { padding: .4rem .5rem; border: 1px solid #c4cad2; border-radius: 4px; font: inherit; background: #fff; }
 table { width: 100%; border-collapse: collapse; background: #fff; }
 th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #e3e6ea; }
 th { background: #f0f2f5; font-weight: 600; }

@@ -21,6 +21,7 @@ export class CatalogCrud {
 
   readonly type = input.required<CatalogType>();
   protected readonly locales = LOCALES;
+  protected readonly pageSizes = [10, 20, 30];
   protected readonly extras = computed(() => extraFields(this.type()));
 
   /** Back to page 0 / default sort whenever another catalog is selected (not when only its translated name changes). */
@@ -72,6 +73,10 @@ export class CatalogCrud {
       sortDirection: q.sortBy === field && q.sortDirection === 'ASC' ? 'DESC' : 'ASC',
       page: 0,
     }));
+  }
+
+  protected setSize(size: number) {
+    this.query.update((q) => ({ ...q, size, page: 0 }));
   }
 
   protected goTo(page: number) {

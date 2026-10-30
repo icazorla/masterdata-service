@@ -79,6 +79,11 @@
   <button type="button" [disabled]="query().page === 0" (click)="goTo(query().page - 1)">{{ i18n.t('prev') }}</button>
   <span>{{ i18n.t('page', query().page + 1, pages(), page.value()?.total ?? 0) }}</span>
   <button type="button" [disabled]="query().page + 1 >= pages()" (click)="goTo(query().page + 1)">{{ i18n.t('next') }}</button>
+  <select [ngModel]="query().size" (ngModelChange)="setSize($event)" [attr.aria-label]="i18n.t('pageSize')">
+    @for (s of pageSizes; track s) {
+      <option [ngValue]="s">{{ i18n.t('perPage', s) }}</option>
+    }
+  </select>
 </div>
 
 @if (editing(); as ed) {

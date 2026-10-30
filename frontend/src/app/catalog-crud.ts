@@ -6,7 +6,10 @@ import { CatalogApi, ListQuery, errorMessage } from './catalog-api';
 import { I18n } from './i18n';
 import { CatalogEntry, CatalogType, Draft, LOCALES, extraFields, newDraft, toPayload } from './models';
 
-const inputTypes = { string: 'text', integer: 'number', number: 'number', boolean: 'checkbox', date: 'date', 'date-time': 'text' };
+/** The list starts on active entries only; "any" in the Enabled filter shows the disabled ones too. */
+const DEFAULT_FILTERS: Record<string, string> = { enabled: 'true' };
+
+const inputTypes ={ string: 'text', integer: 'number', number: 'number', boolean: 'checkbox', date: 'date', 'date-time': 'text' };
 
 /** List + create/edit form + delete for one catalog type. Columns and form fields come from the type's definition. */
 @Component({
@@ -27,10 +30,10 @@ export class CatalogCrud {
   /** Back to page 0 / default sort whenever another catalog is selected (not when only its translated name changes). */
   protected readonly query = linkedSignal<string, ListQuery>({
     source: () => this.type().type,
-    computation: () => ({ page: 0, size: 20, sortBy: 'name', sortDirection: 'ASC', filters: {} }),
+    computation: () => ({ page: 0, size: 20, sortBy: 'name', sortDirection: 'ASC', filters: DEFAULT_FILTERS }),
   });
   /** Search inputs, applied to `query` on submit; reset with the query when another catalog is selected. */
-  protected readonly filters = linkedSignal<string, Record<string, string>>({ source: () => this.type().type, computation: () => ({}) });
+  protected readonly filters = linkedSignal<string, Record<string, string>>({ source: () => this.type().type, computation: () => DEFAULT_FILTERS });
   protected readonly filterable = computed(() => this.extras().filter((f) => f.filterOperators.length > 0));
 
   protected readonly page = rxResource({
@@ -62,7 +65,7 @@ export class CatalogCrud {
   }
 
   protected clearSearch() {
-    this.filters.set({});
+    this.filters.set(DEFAULT_FILTERS);
     this.applySearch();
   }
 

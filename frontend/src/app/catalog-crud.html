@@ -1,6 +1,11 @@
 <div class="toolbar">
   <form (ngSubmit)="applySearch()">
     <input name="name" [ngModel]="filters()['name']" (ngModelChange)="setFilter('name', $event)" [placeholder]="i18n.t('name') + '…'" />
+    <select name="enabled" [ngModel]="filters()['enabled'] || ''" (ngModelChange)="setFilter('enabled', $event)" [attr.aria-label]="i18n.t('enabled')">
+      <option value="">{{ i18n.t('enabled') }}: {{ i18n.t('any') }}</option>
+      <option value="true">{{ i18n.t('enabled') }}: {{ i18n.t('yes') }}</option>
+      <option value="false">{{ i18n.t('enabled') }}: {{ i18n.t('no') }}</option>
+    </select>
     @for (f of filterable(); track f.name) {
       @if (f.dataType === 'boolean') {
         <select [name]="f.name" [ngModel]="filters()[f.name] || ''" (ngModelChange)="setFilter(f.name, $event)" [attr.aria-label]="f.name">

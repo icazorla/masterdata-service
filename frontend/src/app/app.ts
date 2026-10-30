@@ -1,9 +1,10 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { Auth } from './auth';
 import { CatalogApi, errorMessage } from './catalog-api';
 import { CatalogCrud } from './catalog-crud';
+import { I18n, LANGS } from './i18n';
 import { CatalogType } from './models';
 
 @Component({
@@ -14,8 +15,10 @@ import { CatalogType } from './models';
 })
 export class App {
   protected readonly auth = inject(Auth);
+  protected readonly i18n = inject(I18n);
   private readonly api = inject(CatalogApi);
 
+  protected readonly langs = Object.entries(LANGS).map(([code, name]) => ({ code, name }));
   protected user = 'admin';
   protected password = '';
   protected readonly types = signal<CatalogType[]>([]);
@@ -24,7 +27,11 @@ export class App {
   protected readonly error = signal<string | null>(null);
 
   constructor() {
-    if (this.auth.header()) this.loadTypes();
+    // Type names come translated by the backend (Accept-Language): load them at startup and on every language change.
+    effect(() => {
+      this.i18n.lang();
+      untracked(() => this.auth.header() && this.loadTypes());
+    });
   }
 
   protected login() {
@@ -44,7 +51,8 @@ export class App {
     this.api.types().subscribe({
       next: (types) => this.types.set(types),
       // The interceptor already logged out on 401.
-      error: (e) => this.error.set(e.status === 401 ? 'Invalid credentials.' : errorMessage(e)),
+      error: (e) =>
+        this.error.set(e.status === 401 ? this.i18n.t('invalidCredentials') : errorMessage(e, this.i18n.t('backendUnavailable'))),
     });
   }
 }

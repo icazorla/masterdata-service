@@ -62,9 +62,9 @@ export class CatalogApi {
 }
 
 /** Server error body is `{message, errors?}`; fall back to a generic text when the backend is unreachable. */
-export function errorMessage(e: unknown): string {
+export function errorMessage(e: unknown, unavailable: string): string {
   if (!(e instanceof HttpErrorResponse)) return String(e);
-  if (e.status === 0 || e.status === 502 || e.status === 504) return 'Backend unavailable.';
+  if (e.status === 0 || e.status === 502 || e.status === 504) return unavailable;
   const body = e.error as { message?: string; errors?: string[] } | null;
   return [body?.message ?? e.message, ...(body?.errors ?? [])].join(' — ');
 }

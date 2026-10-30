@@ -1,21 +1,21 @@
 <div class="toolbar">
   <form (ngSubmit)="applySearch()">
-    <input name="name" [ngModel]="filters()['name']" (ngModelChange)="setFilter('name', $event)" placeholder="Name…" />
+    <input name="name" [ngModel]="filters()['name']" (ngModelChange)="setFilter('name', $event)" [placeholder]="i18n.t('name') + '…'" />
     @for (f of filterable(); track f.name) {
       @if (f.dataType === 'boolean') {
         <select [name]="f.name" [ngModel]="filters()[f.name] || ''" (ngModelChange)="setFilter(f.name, $event)" [attr.aria-label]="f.name">
-          <option value="">{{ f.name }}: any</option>
-          <option value="true">{{ f.name }}: yes</option>
-          <option value="false">{{ f.name }}: no</option>
+          <option value="">{{ f.name }}: {{ i18n.t('any') }}</option>
+          <option value="true">{{ f.name }}: {{ i18n.t('yes') }}</option>
+          <option value="false">{{ f.name }}: {{ i18n.t('no') }}</option>
         </select>
       } @else {
-        <input [name]="f.name" [ngModel]="filters()[f.name]" (ngModelChange)="setFilter(f.name, $event)" [placeholder]="f.name + '… (a,b = any)'" />
+        <input [name]="f.name" [ngModel]="filters()[f.name]" (ngModelChange)="setFilter(f.name, $event)" [placeholder]="f.name + '… ' + i18n.t('anyOf')" />
       }
     }
-    <button type="submit">Search</button>
-    <button type="button" (click)="clearSearch()">Clear</button>
+    <button type="submit">{{ i18n.t('search') }}</button>
+    <button type="button" (click)="clearSearch()">{{ i18n.t('clear') }}</button>
   </form>
-  <button type="button" class="primary" (click)="create()">+ New {{ type().name.toLowerCase() }}</button>
+  <button type="button" class="primary" (click)="create()">+ {{ i18n.t('new') }}</button>
 </div>
 
 @if (error(); as message) {
@@ -24,7 +24,7 @@
   }
 }
 @if (page.error()) {
-  <p class="error" role="alert">Could not load the list.</p>
+  <p class="error" role="alert">{{ i18n.t('loadError') }}</p>
 }
 
 <table>
@@ -32,7 +32,7 @@
     <tr>
       <th>ID</th>
       @for (l of locales; track l) {
-        <th><button class="sort" (click)="sortBy('name')">Name ({{ l }}){{ arrow('name') }}</button></th>
+        <th><button class="sort" (click)="sortBy('name')">{{ i18n.t('name') }} ({{ l }}){{ arrow('name') }}</button></th>
       }
       @for (f of extras(); track f.name) {
         <th>
@@ -43,8 +43,8 @@
           }
         </th>
       }
-      <th><button class="sort" (click)="sortBy('weight')">Weight{{ arrow('weight') }}</button></th>
-      <th>Enabled</th>
+      <th><button class="sort" (click)="sortBy('weight')">{{ i18n.t('weight') }}{{ arrow('weight') }}</button></th>
+      <th>{{ i18n.t('enabled') }}</th>
       <th></th>
     </tr>
   </thead>
@@ -59,40 +59,40 @@
           <td>{{ e[f.name] }}</td>
         }
         <td>{{ e.weight }}</td>
-        <td>{{ e.enabled ? 'Yes' : 'No' }}</td>
+        <td>{{ e.enabled ? i18n.t('yes') : i18n.t('no') }}</td>
         <td class="actions">
-          <button type="button" (click)="edit(e)">Edit</button>
+          <button type="button" (click)="edit(e)">{{ i18n.t('edit') }}</button>
           @if (e.enabled) {
-            <button type="button" class="danger" (click)="remove(e)">Disable</button>
+            <button type="button" class="danger" (click)="remove(e)">{{ i18n.t('disable') }}</button>
           }
         </td>
       </tr>
     } @empty {
       @if (!page.isLoading()) {
-        <tr><td [attr.colspan]="locales.length + extras().length + 4">No entries.</td></tr>
+        <tr><td [attr.colspan]="locales.length + extras().length + 4">{{ i18n.t('noEntries') }}</td></tr>
       }
     }
   </tbody>
 </table>
 
 <div class="pager">
-  <button type="button" [disabled]="query().page === 0" (click)="goTo(query().page - 1)">‹ Prev</button>
-  <span>Page {{ query().page + 1 }} / {{ pages() }} · {{ page.value()?.total ?? 0 }} entries</span>
-  <button type="button" [disabled]="query().page + 1 >= pages()" (click)="goTo(query().page + 1)">Next ›</button>
+  <button type="button" [disabled]="query().page === 0" (click)="goTo(query().page - 1)">{{ i18n.t('prev') }}</button>
+  <span>{{ i18n.t('page', query().page + 1, pages(), page.value()?.total ?? 0) }}</span>
+  <button type="button" [disabled]="query().page + 1 >= pages()" (click)="goTo(query().page + 1)">{{ i18n.t('next') }}</button>
 </div>
 
 @if (editing(); as ed) {
   <div class="backdrop">
     <form class="dialog" (ngSubmit)="save()" #f="ngForm">
-      <h2>{{ ed.entry ? 'Edit ' + type().name.toLowerCase() + ' #' + ed.entry.id : 'New ' + type().name.toLowerCase() }}</h2>
+      <h2>{{ ed.entry ? i18n.t('edit') + ' #' + ed.entry.id : i18n.t('new') }} · {{ type().name }}</h2>
 
       @for (l of locales; track l) {
         <fieldset>
-          <legend>{{ l }}{{ l === 'en' ? ' (required)' : '' }}</legend>
-          <label>Name
+          <legend>{{ l }}{{ l === 'en' ? ' (' + i18n.t('required') + ')' : '' }}</legend>
+          <label>{{ i18n.t('name') }}
             <input [name]="'name-' + l" [(ngModel)]="ed.draft.translations[l].name" maxlength="80" [required]="l === 'en'" />
           </label>
-          <label>Description
+          <label>{{ i18n.t('description') }}
             <textarea [name]="'desc-' + l" [(ngModel)]="ed.draft.translations[l].description" maxlength="500" rows="2"></textarea>
           </label>
         </fieldset>
@@ -101,19 +101,19 @@
       @for (x of extras(); track x.name) {
         <label [class.check]="x.dataType === 'boolean'">{{ x.name }}{{ x.required ? ' *' : '' }}
           <input [name]="'x-' + x.name" [type]="inputType(x.dataType)" [(ngModel)]="ed.draft.extras[x.name]" [required]="x.required"
-                 [placeholder]="x.dataType === 'date-time' ? 'ISO-8601, e.g. 2024-01-31T10:00:00Z' : ''" />
+                 [placeholder]="x.dataType === 'date-time' ? i18n.t('isoPlaceholder') : ''" />
         </label>
       }
 
-      <label>Weight <input name="weight" type="number" [(ngModel)]="ed.draft.weight" /></label>
-      <label class="check"><input name="enabled" type="checkbox" [(ngModel)]="ed.draft.enabled" /> Enabled</label>
+      <label>{{ i18n.t('weight') }} <input name="weight" type="number" [(ngModel)]="ed.draft.weight" /></label>
+      <label class="check"><input name="enabled" type="checkbox" [(ngModel)]="ed.draft.enabled" /> {{ i18n.t('enabled') }}</label>
 
       @if (error(); as message) {
         <p class="error" role="alert">{{ message }}</p>
       }
       <div class="buttons">
-        <button type="button" (click)="editing.set(null)">Cancel</button>
-        <button type="submit" class="primary" [disabled]="f.invalid || saving()">{{ saving() ? 'Saving…' : 'Save' }}</button>
+        <button type="button" (click)="editing.set(null)">{{ i18n.t('cancel') }}</button>
+        <button type="submit" class="primary" [disabled]="f.invalid || saving()">{{ saving() ? i18n.t('saving') : i18n.t('save') }}</button>
       </div>
     </form>
   </div>

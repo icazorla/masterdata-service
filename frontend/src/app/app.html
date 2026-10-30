@@ -1,13 +1,20 @@
 <header>
-  <h1>Catalogs</h1>
+  <h1>{{ i18n.t('appTitle') }}</h1>
   @if (auth.header()) {
-    <select [ngModel]="selectedCode()" (ngModelChange)="selectedCode.set($event)" aria-label="Catalog">
-      <option [ngValue]="null" disabled>Select a catalog…</option>
+    <select [ngModel]="selectedCode()" (ngModelChange)="selectedCode.set($event)" [attr.aria-label]="i18n.t('catalog')">
+      <option [ngValue]="null" disabled>{{ i18n.t('selectCatalog') }}</option>
       @for (t of types(); track t.type) {
         <option [ngValue]="t.type">{{ t.name }}</option>
       }
     </select>
-    <button type="button" class="logout" (click)="logout()">Sign out</button>
+  }
+  <select class="lang" [ngModel]="i18n.lang()" (ngModelChange)="i18n.lang.set($event)" [attr.aria-label]="i18n.t('language')">
+    @for (l of langs; track l.code) {
+      <option [value]="l.code">{{ l.name }}</option>
+    }
+  </select>
+  @if (auth.header()) {
+    <button type="button" class="logout" (click)="logout()">{{ i18n.t('signOut') }}</button>
   }
 </header>
 
@@ -17,15 +24,15 @@
   }
   @if (!auth.header()) {
     <form class="login" (ngSubmit)="login()">
-      <h2>Sign in</h2>
-      <label>User <input name="user" [(ngModel)]="user" autocomplete="username" required /></label>
-      <label>Password <input name="password" type="password" [(ngModel)]="password" autocomplete="current-password" required /></label>
-      <button type="submit">Sign in</button>
+      <h2>{{ i18n.t('signIn') }}</h2>
+      <label>{{ i18n.t('user') }} <input name="user" [(ngModel)]="user" autocomplete="username" required /></label>
+      <label>{{ i18n.t('password') }} <input name="password" type="password" [(ngModel)]="password" autocomplete="current-password" required /></label>
+      <button type="submit">{{ i18n.t('signIn') }}</button>
     </form>
   } @else if (selected(); as type) {
     <h2>{{ type.name }}</h2>
     <app-catalog-crud [type]="type" />
   } @else {
-    <p>Select a catalog to manage its entries.</p>
+    <p>{{ i18n.t('pickCatalogHint') }}</p>
   }
 </main>

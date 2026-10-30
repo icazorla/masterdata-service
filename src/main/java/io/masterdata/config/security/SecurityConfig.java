@@ -4,6 +4,7 @@ import io.masterdata.common.rest.exception.SecurityErrorHandler;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -51,6 +52,9 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").hasRole(ADMIN)
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // UI Angular empaquetada con el perfil Maven "ui": ficheros estáticos en la raíz, sin datos
+                        // (los datos van por /admin/**, que sigue protegido).
+                        .requestMatchers(HttpMethod.GET, "/", "/index.html", "/favicon.ico", "/*.js", "/*.css").permitAll()
                         .anyRequest().authenticated());
         return http.build();
     }

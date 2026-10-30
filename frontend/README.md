@@ -9,6 +9,9 @@ npm start          # http://localhost:4200, proxies /admin to http://localhost:8
 npm test
 ```
 
+To serve the UI from the Spring Boot service itself (one process, one port), run `mvn -Pui spring-boot:run` from the repo root:
+the `ui` profile builds this app and copies it to `static/`. `npm start` stays the way to work on it with live reload.
+
 The **Monitoring** section reads `/actuator/**` (proxied too): health, uptime, heap/CPU/threads, DB pool, requests per catalog
 (needs the backend's `catalog` metric tag, so restart the backend after updating it) and the caches, which can be cleared one by one or all at once.
 It refreshes every 10 s. With `app.catalog.cache.enabled=false` there are no caches to list.

@@ -553,6 +553,14 @@ mvn spring-boot:run
 ```
 La app arranca en http://localhost:8080.
 
+**Con la interfaz web** (backoffice Angular de `frontend/`, servida por el propio Spring Boot en http://localhost:8080/):
+
+```bash
+mvn -Pui spring-boot:run     # o: mvn -Pui package && java -jar target/masterdata-service-*.jar
+```
+
+El perfil `ui` descarga su propio Node, compila `frontend/` y lo copia a `static/`; sin él el build no necesita Node. La UI pide usuario y contraseña de un `ADMIN` (HTTP Basic). Para desarrollar con recarga en caliente sigue siendo mejor `npm start` en `frontend/` (puerto 4200, con proxy al backend).
+
 Para cargar las 19 comunidades/ciudades autónomas y las 52 provincias de España, con sus traducciones en/es y sus códigos INE, ejecuta [scripts/seed-catalogs.sql](scripts/seed-catalogs.sql) contra la base de datos. Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes:
 
 ```bash

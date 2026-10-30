@@ -28,8 +28,24 @@ export interface CatalogRequests {
   count: number;
   avgMs: number;
   maxMs: number;
+  /** Recent window (about 2 min), not since startup; null while there are no recent requests. */
+  p95Ms: number | null;
+  p99Ms: number | null;
   clientErrors: number;
   serverErrors: number;
+}
+
+export interface Tally {
+  name: string;
+  count: number;
+}
+
+export interface Traffic {
+  p95Ms: number | null;
+  p99Ms: number | null;
+  /** Catalog requests since startup, by HTTP method and by status code. */
+  methods: Tally[];
+  statuses: Tally[];
 }
 
 export interface Snapshot {
@@ -43,6 +59,7 @@ export interface Snapshot {
   pool: Record<'active' | 'idle' | 'max' | 'pending' | 'timeout', number | null>;
   /** All zeros until the first request, or when the backend doesn't tag requests by `catalog` (older build). */
   requests: CatalogRequests[];
+  traffic: Traffic;
   caches: CacheStats[];
   takenAt: Date;
 }
@@ -98,14 +115,21 @@ export class MonitoringApi {
     ]).pipe(map(([size, hits, misses]) => ({ ...ref, size: size?.['VALUE'] ?? null, hits: hits?.['COUNT'] ?? null, misses: misses?.['COUNT'] ?? null })));
   }
 
+  /** Percentile gauge (in seconds) of a timer published with `publishPercentiles`, as ms; null when missing or the window has no requests (0 or NaN). */
+  private percentile(timer: string, p: string, ...tags: string[]) {
+    return this.value(`${timer}.percentile`, `phi:${p}`, ...tags).pipe(map((v) => (v != null && v > 0 ? v * 1000 : null)));
+  }
+
   private catalogRequests(type: CatalogType): Observable<CatalogRequests> {
     const tag = `catalog:${type.type}`;
     return forkJoin([
       this.measure('http.server.requests', tag),
       this.measure('http.server.requests', tag, 'outcome:CLIENT_ERROR'),
       this.measure('http.server.requests', tag, 'outcome:SERVER_ERROR'),
+      this.percentile('catalog.requests', '0.95', tag),
+      this.percentile('catalog.requests', '0.99', tag),
     ]).pipe(
-      map(([all, client, server]) => {
+      map(([all, client, server, p95Ms, p99Ms]) => {
         const count = all?.['COUNT'] ?? 0;
         return {
           type: type.type,
@@ -113,10 +137,25 @@ export class MonitoringApi {
           count,
           avgMs: count ? ((all?.['TOTAL_TIME'] ?? 0) / count) * 1000 : 0,
           maxMs: (all?.['MAX'] ?? 0) * 1000,
+          p95Ms,
+          p99Ms,
           clientErrors: client?.['COUNT'] ?? 0,
           serverErrors: server?.['COUNT'] ?? 0,
         };
       }),
+    );
+  }
+
+  /** Values of one tag of `catalog.requests.by` (method, status), each with its request count. */
+  private tally(tag: 'method' | 'status'): Observable<Tally[]> {
+    return this.http.get<{ availableTags: { tag: string; values: string[] }[] }>(`${BASE}/metrics/catalog.requests.by`).pipe(
+      map((r) => r.availableTags.find((t) => t.tag === tag)?.values ?? []),
+      switchMap((values) =>
+        values.length
+          ? forkJoin(values.map((v) => this.measure('catalog.requests.by', `${tag}:${v}`).pipe(map((s) => ({ name: v, count: s?.['COUNT'] ?? 0 })))))
+          : of([] as Tally[]),
+      ),
+      catchError(() => of([] as Tally[])),
     );
   }
 
@@ -138,6 +177,12 @@ export class MonitoringApi {
         timeout: this.measure('hikaricp.connections.timeout').pipe(map((s) => s?.['COUNT'] ?? null)),
       }),
       requests: types.length ? forkJoin(types.map((t) => this.catalogRequests(t))) : of([]),
+      traffic: forkJoin({
+        p95Ms: this.percentile('catalog.requests.all', '0.95'),
+        p99Ms: this.percentile('catalog.requests.all', '0.99'),
+        methods: this.tally('method'),
+        statuses: this.tally('status'),
+      }),
       caches: this.cacheRefs().pipe(
         switchMap((refs) => (refs.length ? forkJoin(refs.map((r) => this.cacheStats(r))) : of([] as CacheStats[]))),
       ),

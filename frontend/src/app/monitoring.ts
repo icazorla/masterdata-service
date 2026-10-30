@@ -6,14 +6,43 @@ import { Subject, filter, merge, switchMap, tap, timer } from 'rxjs';
 
 import { I18n } from './i18n';
 import { CatalogType } from './models';
-import { CacheRef, CacheStats, MonitoringApi, Snapshot } from './monitoring-api';
+import { CacheRef, CacheStats, MonitoringApi, Snapshot, Tally } from './monitoring-api';
+import { Sparkline } from './sparkline';
 
 const REFRESH_MS = 10_000;
+/** Readings kept for the trend lines: 30 × 10 s = 5 min with auto-refresh on. */
+const HISTORY = 30;
+const METHOD_COLORS: Record<string, string> = { GET: '#1a56db', POST: '#eb6834', PUT: '#1baf7a', DELETE: '#eda100' };
+const OTHER_METHOD_COLOR = '#98a2b3';
+/** Statuses worth flagging: version conflicts between editors (409/412). */
+const CONFLICTS = ['409', '412'];
+
+/** What each reading adds to the trend lines; counters are cumulative, the lines show what changed between readings. */
+interface Sample {
+  at: number;
+  total: number;
+  byCatalog: Record<string, number>;
+  p95Ms: number | null;
+  conflicts: number;
+  serverErrors: number;
+}
+
+function sampleOf(s: Snapshot): Sample {
+  const sum = (tallies: Tally[]) => tallies.reduce((n, t) => n + t.count, 0);
+  return {
+    at: s.takenAt.getTime(),
+    total: s.requests.reduce((n, r) => n + r.count, 0),
+    byCatalog: Object.fromEntries(s.requests.map((r) => [r.type, r.count])),
+    p95Ms: s.traffic.p95Ms,
+    conflicts: sum(s.traffic.statuses.filter((t) => CONFLICTS.includes(t.name))),
+    serverErrors: sum(s.traffic.statuses.filter((t) => t.name.startsWith('5'))),
+  };
+}
 
 /** Service health and metrics from Spring Boot Actuator, plus cache reset. */
 @Component({
   selector: 'app-monitoring',
-  imports: [FormsModule, KeyValuePipe],
+  imports: [FormsModule, KeyValuePipe, Sparkline],
   templateUrl: './monitoring.html',
   styleUrl: './monitoring.css',
 })
@@ -38,6 +67,23 @@ export class Monitoring {
   });
   protected readonly anyRequests = computed(() => this.snapshot()?.requests.some((r) => r.count > 0) ?? false);
 
+  private readonly history = signal<Sample[]>([]);
+  protected readonly requestRates = computed(() => this.changes((s) => s.total, true));
+  protected readonly p95Series = computed(() => this.history().map((s) => s.p95Ms ?? 0));
+  protected readonly conflictSeries = computed(() => this.changes((s) => s.conflicts, false));
+  protected readonly errorSeries = computed(() => this.changes((s) => s.serverErrors, false));
+  protected readonly conflicts = computed(() => this.history().at(-1)?.conflicts ?? null);
+  protected readonly serverErrors = computed(() => this.history().at(-1)?.serverErrors ?? null);
+  /** Requests per second of each catalog between the last two readings. */
+  protected readonly catalogRates = computed(() => {
+    const [prev, last] = this.history().slice(-2);
+    if (!prev || !last) return {} as Record<string, number>;
+    const seconds = Math.max(1, (last.at - prev.at) / 1000);
+    return Object.fromEntries(Object.entries(last.byCatalog).map(([type, n]) => [type, Math.max(0, n - (prev.byCatalog[type] ?? 0)) / seconds]));
+  });
+  protected readonly methods = computed(() => this.shares(this.snapshot()?.traffic.methods ?? []));
+  protected readonly statuses = computed(() => (this.snapshot()?.traffic.statuses ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)));
+
   constructor() {
     merge(timer(0, REFRESH_MS).pipe(filter(() => this.auto())), this.reload$)
       .pipe(
@@ -47,8 +93,32 @@ export class Monitoring {
       )
       .subscribe((snapshot) => {
         this.snapshot.set(snapshot);
+        this.history.update((h) => [...h, sampleOf(snapshot)].slice(-HISTORY));
         this.loading.set(false);
       });
+  }
+
+  /** Change of a cumulative counter between consecutive readings (per second if asked); a restart's drop counts as 0. */
+  private changes(pick: (s: Sample) => number, perSecond: boolean): number[] {
+    const h = this.history();
+    return h.slice(1).map((s, i) => Math.max(0, pick(s) - pick(h[i])) / (perSecond ? Math.max(1, (s.at - h[i].at) / 1000) : 1));
+  }
+
+  /** Biggest first, each with its share of the total in percent and its color. */
+  private shares(tallies: Tally[]) {
+    const total = tallies.reduce((n, t) => n + t.count, 0);
+    return tallies
+      .filter((t) => t.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .map((t) => ({ ...t, color: METHOD_COLORS[t.name] ?? OTHER_METHOD_COLOR, percent: (t.count / total) * 100 }));
+  }
+
+  protected last(series: number[]) {
+    return series.at(-1) ?? null;
+  }
+
+  protected statusClass(status: string) {
+    return CONFLICTS.includes(status) ? 'warn' : status.startsWith('5') ? 'bad' : '';
   }
 
   protected reload() {

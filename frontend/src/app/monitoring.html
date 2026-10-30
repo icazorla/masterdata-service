@@ -47,6 +47,31 @@
     </div>
   }
 
+  <h2 class="section">{{ i18n.t('traffic') }}</h2>
+  <div class="stats">
+    <div class="stat">
+      <span class="label">{{ i18n.t('requestsPerSecond') }}</span>
+      <span class="value">{{ num(last(requestRates()), 1) }}</span>
+      <app-sparkline [values]="requestRates()" color="#1a56db" />
+    </div>
+    <div class="stat">
+      <span class="label">{{ i18n.t('latencyP95') }}</span>
+      <span class="value">{{ s.traffic.p95Ms == null ? '—' : ms(s.traffic.p95Ms) }}</span>
+      <app-sparkline [values]="p95Series()" color="#6250d6" />
+    </div>
+    <div class="stat">
+      <span class="label">{{ i18n.t('conflicts') }}</span>
+      <span class="value">{{ num(conflicts()) }}</span>
+      <app-sparkline [values]="conflictSeries()" color="#b54708" />
+    </div>
+    <div class="stat">
+      <span class="label">{{ i18n.t('serverErrors') }}</span>
+      <span class="value" [class.ok]="serverErrors() === 0" [class.bad]="(serverErrors() ?? 0) > 0">{{ num(serverErrors()) }}</span>
+      <app-sparkline [values]="errorSeries()" color="#067647" />
+    </div>
+  </div>
+  <p class="muted">{{ i18n.t('trafficHint') }}</p>
+
   <div class="panels">
     <section class="panel wide">
       <h3>{{ i18n.t('requestsByCatalog') }}</h3>
@@ -55,8 +80,10 @@
           <thead>
             <tr>
               <th>{{ i18n.t('catalog') }}</th>
-              <th class="num">{{ i18n.t('requests') }}</th>
+              <th class="num">{{ i18n.t('reqPerSecShort') }}</th>
               <th class="num">{{ i18n.t('avgTime') }}</th>
+              <th class="num">p95</th>
+              <th class="num">p99</th>
               <th class="num">{{ i18n.t('maxTime') }}</th>
               <th class="num">4xx</th>
               <th class="num">5xx</th>
@@ -66,8 +93,10 @@
             @for (r of s.requests; track r.type) {
               <tr>
                 <td>{{ r.name }} <span class="code">{{ r.type }}</span></td>
-                <td class="num">{{ num(r.count) }}</td>
+                <td class="num">{{ num(catalogRates()[r.type], 1) }}</td>
                 <td class="num">{{ ms(r.avgMs) }}</td>
+                <td class="num">{{ r.p95Ms == null ? '—' : ms(r.p95Ms) }}</td>
+                <td class="num">{{ r.p99Ms == null ? '—' : ms(r.p99Ms) }}</td>
                 <td class="num">{{ ms(r.maxMs) }}</td>
                 <td class="num" [class.bad]="r.clientErrors > 0">{{ num(r.clientErrors) }}</td>
                 <td class="num" [class.bad]="r.serverErrors > 0">{{ num(r.serverErrors) }}</td>
@@ -76,6 +105,38 @@
           </tbody>
         </table>
         <p class="muted">{{ i18n.t('requestsHint') }}</p>
+      } @else {
+        <p class="muted">{{ i18n.t('noData') }}</p>
+      }
+    </section>
+
+    <section class="panel">
+      <h3>{{ i18n.t('byMethod') }}</h3>
+      @if (methods().length) {
+        <div class="split">
+          @for (m of methods(); track m.name) {
+            <span [style.flex]="m.count" [style.background]="m.color"></span>
+          }
+        </div>
+        <div class="legend">
+          @for (m of methods(); track m.name) {
+            <span><i [style.background]="m.color"></i>{{ m.name }} {{ num(m.percent) }} %</span>
+          }
+        </div>
+      } @else {
+        <p class="muted">{{ i18n.t('noData') }}</p>
+      }
+    </section>
+
+    <section class="panel">
+      <h3>{{ i18n.t('byStatus') }}</h3>
+      @if (statuses().length) {
+        <div class="chips">
+          @for (t of statuses(); track t.name) {
+            <span class="chip" [class]="statusClass(t.name)">{{ t.name }} · {{ num(t.count) }}</span>
+          }
+        </div>
+        <p class="muted">{{ i18n.t('conflictsHint') }}</p>
       } @else {
         <p class="muted">{{ i18n.t('noData') }}</p>
       }

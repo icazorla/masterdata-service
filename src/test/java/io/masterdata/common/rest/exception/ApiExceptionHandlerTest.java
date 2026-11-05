@@ -9,11 +9,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 
 import java.util.List;
 import java.util.Locale;
@@ -111,6 +114,35 @@ class ApiExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
         assertThat(response.getHeaders().getAllow()).isEmpty();
         assertThat(response.getBody()).containsEntry("message", "Method TRACE not allowed on this resource");
+    }
+
+    @Test
+    @DisplayName("Un error del cliente que Spring ya clasifica (Accept no soportado) conserva su 4xx, en JSON, y no es un 500")
+    void springClientErrorKeepsItsStatus() {
+        ResponseEntity<Map<String, Object>> response = handler.handleGeneric(
+                new HttpMediaTypeNotAcceptableException(List.of(MediaType.APPLICATION_JSON)), Locale.ENGLISH);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_ACCEPTABLE);
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+        assertThat(response.getBody()).containsEntry("status", 406)
+                .containsEntry("message", "The request cannot be processed");
+    }
+
+    @Test
+    @DisplayName("Un parámetro obligatorio ausente es 400, no 500")
+    void missingRequestParameterIs400() {
+        ResponseEntity<Map<String, Object>> response = handler.handleGeneric(
+                new MissingServletRequestParameterException("filter", "String"), Locale.ENGLISH);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @DisplayName("Los saltos de línea y otros caracteres de control del texto del cliente no llegan al log, y se acota su longitud")
+    void logSanitizerRemovesControlCharactersAndTruncates() {
+        assertThat(LogSanitizer.clean("a\r\nFAKE LOG LINE\tb")).isEqualTo("a  FAKE LOG LINE b");
+        assertThat(LogSanitizer.clean("x".repeat(LogSanitizer.MAX_LENGTH + 100))).hasSize(LogSanitizer.MAX_LENGTH + 1);
+        assertThat(LogSanitizer.clean(null)).isEqualTo("null");
     }
 
     @Test

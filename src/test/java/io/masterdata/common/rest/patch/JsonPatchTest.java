@@ -368,4 +368,39 @@ class JsonPatchTest {
         assertThatThrownBy(() -> JsonPatch.apply(map("foo", List.of()), List.of(op("test", "/foo", map()))))
                 .isInstanceOf(JsonPatchTestFailedException.class);
     }
+
+    @Test
+    @DisplayName("test con NaN/Infinity no revienta con NumberFormatException: simplemente no coincide, o coincide si son iguales")
+    void test_nonFiniteNumbers() {
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", 1), List.of(op("test", "/foo", Double.POSITIVE_INFINITY))))
+                .isInstanceOf(JsonPatchTestFailedException.class);
+        assertThat(JsonPatch.apply(map("foo", Double.NaN), List.of(op("test", "/foo", Double.NaN))))
+                .isEqualTo(map("foo", Double.NaN));
+    }
+
+    // ---- topes frente a un patch hostil ------------------------------------
+
+    @Test
+    @DisplayName("Más de MAX_OPERATIONS operaciones se rechazan antes de aplicar ninguna")
+    void tooManyOperationsAreRejected() {
+        List<JsonPatchOperation> ops = java.util.Collections.nCopies(JsonPatch.MAX_OPERATIONS + 1, op("test", "/foo", "bar"));
+
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), ops))
+                .isInstanceOf(JsonPatchException.class)
+                .hasMessageContaining("too many operations");
+    }
+
+    @Test
+    @DisplayName("copy encadenado que duplica el documento (2^N) se corta al superar MAX_NODES")
+    void doublingCopiesAreCutOff() {
+        // Copiar el documento entero dentro de sí mismo, con una clave nueva cada vez, lo duplica en cada operación.
+        List<JsonPatchOperation> ops = new java.util.ArrayList<>();
+        for (int i = 0; i < JsonPatch.MAX_OPERATIONS; i++) {
+            ops.add(moveOrCopy("copy", "", "/c" + i));
+        }
+
+        assertThatThrownBy(() -> JsonPatch.apply(map("foo", "bar"), ops))
+                .isInstanceOf(JsonPatchException.class)
+                .hasMessageContaining("too large");
+    }
 }

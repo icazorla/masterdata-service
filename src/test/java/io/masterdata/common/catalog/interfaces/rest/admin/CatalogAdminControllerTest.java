@@ -697,4 +697,40 @@ class CatalogAdminControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1));
     }
+
+    @Test
+    @DisplayName("Un Accept que la API no puede servir es 406 en JSON, no un 500")
+    void unsupportedAcceptIs406NotAnInternalError() throws Exception {
+        when(queryService.findById(TestCatalogTypes.REGION, 1L)).thenReturn(buildBilingualEntity());
+
+        mockMvc.perform(get("/admin/api/catalogs/region/{id}", 1L).accept(MediaType.APPLICATION_XML))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(jsonPath("$.status").value(406));
+    }
+
+    @Test
+    @DisplayName("Una traducción null en el cuerpo es 400, no un 500 por NullPointerException")
+    void create_nullTranslationIs400() throws Exception {
+        mockMvc.perform(post("/admin/api/catalogs/region")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"translations\":{\"en\":null}}"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(commandService);
+    }
+
+    @Test
+    @DisplayName("Un JSON Patch con más operaciones que el máximo es 400")
+    void patch_tooManyOperationsIs400() throws Exception {
+        when(queryService.findById(TestCatalogTypes.REGION, 1L)).thenReturn(buildBilingualEntity());
+        String op = "{\"op\":\"test\",\"path\":\"/weight\",\"value\":3}";
+        String patch = "[" + String.join(",", java.util.Collections.nCopies(51, op)) + "]";
+
+        mockMvc.perform(patch("/admin/api/catalogs/region/{id}", 1L)
+                        .contentType("application/json-patch+json")
+                        .content(patch))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(commandService);
+    }
 }

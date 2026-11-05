@@ -30,13 +30,43 @@ public final class JsonPatch {
     private JsonPatch() {
     }
 
+    /**
+     * Topes frente a un patch hostil: {@code copy} duplica en profundidad, así que N operaciones
+     * encadenadas pueden multiplicar el documento por 2^N. Con el tope de nodos comprobado tras cada
+     * operación, el documento nunca pasa de ~2 × {@link #MAX_NODES}.
+     */
+    public static final int MAX_OPERATIONS = 50;
+    public static final int MAX_NODES = 10_000;
+
     public static Object apply(Object document, List<JsonPatchOperation> operations) {
+        if (operations.size() > MAX_OPERATIONS) {
+            throw new JsonPatchException("too many operations: at most " + MAX_OPERATIONS + " allowed",
+                    "error.jsonPatch.tooManyOperations", MAX_OPERATIONS);
+        }
         Object result = deepCopy(document);
         for (int i = 0; i < operations.size(); i++) {
             JsonPatchOperation op = operations.get(i);
             result = applyOperation(result, op, i);
+            if (countNodes(result) > MAX_NODES) {
+                throw new JsonPatchException("resulting document is too large: at most " + MAX_NODES + " values allowed",
+                        "error.jsonPatch.documentTooLarge", MAX_NODES);
+            }
         }
         return result;
+    }
+
+    private static int countNodes(Object value) {
+        int count = 1;
+        if (value instanceof Map<?, ?> map) {
+            for (Object child : map.values()) {
+                count += countNodes(child);
+            }
+        } else if (value instanceof List<?> list) {
+            for (Object child : list) {
+                count += countNodes(child);
+            }
+        }
+        return count;
     }
 
     private static Object applyOperation(Object doc, JsonPatchOperation op, int index) {
@@ -239,12 +269,19 @@ public final class JsonPatch {
         return value;
     }
 
+    private static boolean isFinite(Number n) {
+        return !(n instanceof Double d && !Double.isFinite(d)) && !(n instanceof Float f && !Float.isFinite(f));
+    }
+
     private static boolean deepEquals(Object a, Object b) {
         if (a == null || b == null) {
             return a == b;
         }
         if (a instanceof Number na && b instanceof Number nb) {
-            return new BigDecimal(na.toString()).compareTo(new BigDecimal(nb.toString())) == 0;
+            // NaN/Infinity no son BigDecimal: new BigDecimal("Infinity") lanzaría NumberFormatException (500).
+            return isFinite(na) && isFinite(nb)
+                    ? new BigDecimal(na.toString()).compareTo(new BigDecimal(nb.toString())) == 0
+                    : na.equals(nb);
         }
         if (a instanceof Map<?, ?> ma && b instanceof Map<?, ?> mb) {
             if (ma.size() != mb.size()) {

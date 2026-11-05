@@ -50,7 +50,7 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException ex) throws IOException {
-        log.warn("{} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        log.warn("{} {}: {}", request.getMethod(), LogSanitizer.clean(request.getRequestURI()), LogSanitizer.clean(ex.getMessage()));
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"" + REALM + "\"");
         write(request, response, HttpStatus.UNAUTHORIZED, "error.unauthorized");
     }
@@ -58,7 +58,7 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException ex) throws IOException {
-        log.warn("{} {}: {} ({})", request.getMethod(), request.getRequestURI(), ex.getMessage(),
+        log.warn("{} {}: {} ({})", request.getMethod(), LogSanitizer.clean(request.getRequestURI()), LogSanitizer.clean(ex.getMessage()),
                 request.getUserPrincipal() == null ? "anonymous" : request.getUserPrincipal().getName());
         write(request, response, HttpStatus.FORBIDDEN, "error.forbidden");
     }

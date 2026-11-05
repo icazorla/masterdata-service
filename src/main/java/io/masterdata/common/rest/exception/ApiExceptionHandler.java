@@ -16,9 +16,11 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -72,7 +74,7 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, Object>> handleOptimisticLock(OptimisticLockingFailureException ex, Locale locale) {
-        log.warn(ex.getMessage());
+        log.warn("{}", LogSanitizer.clean(ex.getMessage()));
         return build(HttpStatus.CONFLICT,
                 messageSource.getMessage("error.concurrentModification", null, locale), List.of());
     }
@@ -106,7 +108,7 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex, Locale locale) {
-        log.warn(ex.getMessage());
+        log.warn("{}", LogSanitizer.clean(ex.getMessage()));
         return build(HttpStatus.CONFLICT,
                 messageSource.getMessage("error.dataIntegrityViolation", null, locale), List.of());
     }
@@ -120,7 +122,7 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Map<String, Object>> handleTypeMismatch(MethodArgumentTypeMismatchException ex, Locale locale) {
-        log.warn(ex.getMessage());
+        log.warn("{}", LogSanitizer.clean(ex.getMessage()));
         return build(HttpStatus.BAD_REQUEST,
                 messageSource.getMessage("error.invalidPathVariable", new Object[]{ex.getValue(), ex.getName()}, locale),
                 List.of());
@@ -155,7 +157,7 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(CannotCreateTransactionException.class)
     public ResponseEntity<Map<String, Object>> handleDatabaseUnavailable(CannotCreateTransactionException ex, Locale locale) {
-        log.error("Database unavailable: {}", ex.getMessage());
+        log.error("Database unavailable: {}", LogSanitizer.clean(ex.getMessage()));
         return build(HttpStatus.SERVICE_UNAVAILABLE,
                 messageSource.getMessage("error.databaseUnavailable", null, locale), List.of());
     }
@@ -168,7 +170,7 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleNotReadable(HttpMessageNotReadableException ex, Locale locale) {
-        log.warn(ex.getMessage());
+        log.warn("{}", LogSanitizer.clean(ex.getMessage()));
         return build(HttpStatus.BAD_REQUEST, messageSource.getMessage("error.malformedRequestBody", null, locale), List.of());
     }
 
@@ -180,7 +182,7 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<Map<String, Object>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex, Locale locale) {
-        log.warn(ex.getMessage());
+        log.warn("{}", LogSanitizer.clean(ex.getMessage()));
         return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, messageSource.getMessage("error.unsupportedMediaType", null, locale), List.of());
     }
 
@@ -192,7 +194,7 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Map<String, Object>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex, Locale locale) {
-        log.warn(ex.getMessage());
+        log.warn("{}", LogSanitizer.clean(ex.getMessage()));
         ResponseEntity<Map<String, Object>> response = build(HttpStatus.METHOD_NOT_ALLOWED,
                 messageSource.getMessage("error.methodNotAllowed", new Object[]{ex.getMethod()}, locale), List.of());
         return ex.getSupportedHttpMethods() == null
@@ -203,18 +205,33 @@ public class ApiExceptionHandler {
     /** Ninguna ruta coincide (p. ej. el antiguo {@code /api/catalogs/{type}/{id}/translations}): 404, no 500. */
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex, Locale locale) {
-        log.warn(ex.getMessage());
+        log.warn("{}", LogSanitizer.clean(ex.getMessage()));
         return build(HttpStatus.NOT_FOUND, messageSource.getMessage("error.resourceNotFound", null, locale), List.of());
     }
 
+    /**
+     * Resto de excepciones. Las que Spring ya clasifica como error del cliente
+     * ({@link ErrorResponse} 4xx: {@code Accept} no soportado, parámetro obligatorio ausente...) conservan su
+     * 4xx y sus cabeceras, sin traza en el log: cualquiera, sin autenticarse, podría provocarlas para
+     * inundarlo y disparar alertas 5xx. El resto es un 500 sin detalles internos.
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex, Locale locale) {
+        if (ex instanceof ErrorResponse errorResponse && errorResponse.getStatusCode().is4xxClientError()) {
+            log.warn("{}", LogSanitizer.clean(ex.getMessage()));
+            HttpStatus status = HttpStatus.valueOf(errorResponse.getStatusCode().value());
+            // JSON explícito: con un Accept no soportado, negociar el tipo de la respuesta de error volvería a fallar.
+            return ResponseEntity.status(status)
+                    .headers(errorResponse.getHeaders())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ApiErrorBody.of(status, messageSource.getMessage("error.badRequest", null, locale), List.of()));
+        }
         log.error("Unhandled error", ex);
         return build(HttpStatus.INTERNAL_SERVER_ERROR, messageSource.getMessage("error.internalServerError", null, locale), List.of());
     }
 
     private ResponseEntity<Map<String, Object>> localized(HttpStatus status, LocalizedException ex, Locale locale) {
-        log.warn(ex.getMessage());
+        log.warn("{}", LogSanitizer.clean(ex.getMessage()));
         return build(status, resolve(ex, locale), List.of());
     }
 

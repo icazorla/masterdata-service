@@ -13,6 +13,16 @@
           <option value="true">{{ f.name }}: {{ i18n.t('yes') }}</option>
           <option value="false">{{ f.name }}: {{ i18n.t('no') }}</option>
         </select>
+      } @else if (f.dataType === 'date') {
+        <!-- range: the API takes `field.gte` / `field.lte` (inclusive); the same day in both = exact date -->
+        <span class="date-filter">
+          <label>{{ f.name }} {{ i18n.t('from') }}
+            <input type="date" [name]="f.name + '.gte'" [ngModel]="filters()[f.name + '.gte']" (ngModelChange)="setFilter(f.name + '.gte', $event)" />
+          </label>
+          <label>{{ i18n.t('to') }}
+            <input type="date" [name]="f.name + '.lte'" [ngModel]="filters()[f.name + '.lte']" (ngModelChange)="setFilter(f.name + '.lte', $event)" />
+          </label>
+        </span>
       } @else {
         <input [name]="f.name" [ngModel]="filters()[f.name]" (ngModelChange)="setFilter(f.name, $event)" [placeholder]="f.name + '… ' + i18n.t('anyOf')" />
       }

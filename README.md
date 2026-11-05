@@ -46,6 +46,9 @@ Tipos configurados actualmente:
 |------------|--------|--------|--------------------|
 | `region`   | Comunidad autónoma de España (incl. Ceuta y Melilla) | `regions` + `region_translations` | `ineCode` |
 | `province` | Provincia de España (incl. Ceuta y Melilla) | `provinces` + `province_translations` | `ineCode`, `regionCode` |
+| `country`  | País (ISO 3166-1) | `countries` + `country_translations` | `alpha2`, `alpha3` |
+| `language` | Idioma (ISO 639) | `languages` + `language_translations` | `alpha2`, `alpha3` |
+| `currency` | Moneda (ISO 4217) | `currencies` + `currency_translations` | `code`, `numericCode`, `decimals`, `symbol` |
 
 - `{type}` no distingue mayúsculas (`/api/catalogs/Province` = `/api/catalogs/province`).
 - Un tipo no configurado (p. ej. `/api/catalogs/widget`) devuelve **400**.
@@ -290,8 +293,11 @@ Cada tipo de catálogo puede tener campos propios además de los comunes:
 |---|---|
 | `region` | `ineCode` (entero, código INE 1–19, único) |
 | `province` | `ineCode` (entero, código INE 1–52, único), `regionCode` (entero, `ineCode` de su comunidad) |
+| `country` | `alpha2` (texto, ISO 3166-1 de 2 letras, p. ej. `ES`, único), `alpha3` (texto, 3 letras, p. ej. `ESP`, único) |
+| `language` | `alpha2` (texto, ISO 639-1, p. ej. `es`, único), `alpha3` (texto, ISO 639-2/T, p. ej. `spa`, único) |
+| `currency` | `code` (texto, ISO 4217, p. ej. `EUR`, único), `numericCode` (entero, p. ej. 978), `decimals` (entero, decimales habituales: EUR 2, JPY 0, KWD 3), `symbol` (texto, símbolo en inglés o el propio código si no tiene otro) |
 
-Por ejemplo, las provincias de Andalucía: `GET /api/catalogs/province?filter=regionCode:1`.
+Por ejemplo, las provincias de Andalucía: `GET /api/catalogs/province?filter=regionCode:1`; la moneda con código `EUR`: `GET /api/catalogs/currency?filter=code:EUR`; las monedas sin decimales: `GET /api/catalogs/currency?filter=decimals:0`. Los campos de texto se filtran con «contiene» (sin distinguir mayúsculas), así que `alpha3:spa` devuelve también cualquier código que contenga `spa`; para un código exacto comprueba el resultado.
 
 - Viajan en el JSON como atributos normales de primer nivel (`"ineCode": 41`), tanto en la petición como en la respuesta.
 - Se pueden usar en `sortBy` y como filtro del listado (solo en su tipo; ver [punto 3](#3-consultas-filtrado-ordenación-y-paginación)).
@@ -412,7 +418,7 @@ Los listados se vacían enteros porque cualquier cambio (nombre, peso, `enabled`
 
 **Posible mejora futura**: cachear también los listados **paginados sin `filter`** en `catalogLists:<type>`. Cambian exactamente cuando cambian los listados completos, así que la invalidación actual ya los cubriría; la clave añadiría la página y el tamaño (un número acotado de entradas: con 52 provincias y páginas de 20 son 3 páginas por idioma y orden) y se ahorrarían la consulta de datos y la del total. Bastaría el mismo `@Cacheable` con la misma condición en `CatalogQueryService#findPage`. Hoy no se hace porque la ganancia es pequeña: los listados paginados los usa sobre todo el backoffice, con poco tráfico, y los catálogos son pequeños. Merecería la pena si algún consumidor de la API de consulta empieza a paginar (p. ej. un listado con scroll infinito).
 
-> **Estado actual:** en `application.yml` la caché está **activada** (`app.catalog.cache.enabled: true`), con la configuración propia de `region` y `province` (tamaño y caducidad de 12 h). Para desactivarla basta con poner `enabled: false`.
+> **Estado actual:** en `application.yml` la caché está **activada** (`app.catalog.cache.enabled: true`), con la configuración propia de cada tipo (tamaño y caducidad de 12 h). Para desactivarla basta con poner `enabled: false`.
 
 La configuración no depende de la librería de caché (hoy Caffeine; cambiarla es añadir otra implementación de `CatalogCacheProvider`, en `infrastructure/cache/spi`):
 
@@ -504,6 +510,19 @@ Endpoints expuestos (`management.endpoints.web.exposure.include`): `health`, `in
 
 **Peticiones por catálogo**: `http.server.requests` lleva además la etiqueta `catalog` (el tipo, o `none` fuera de `/{type}`; `CatalogRequestObservationConvention`), porque su `uri` es solo la plantilla `/api/catalogs/{type}`. P. ej. `/actuator/metrics/http.server.requests?tag=catalog:province` (añadir `&tag=outcome:CLIENT_ERROR` para los 4xx). Además `CatalogRequestObservationHandler` publica, solo para las peticiones a `/{type}`: los temporizadores `catalog.requests` (etiqueta `catalog`) y `catalog.requests.all` con percentiles p95/p99 (`/actuator/metrics/catalog.requests.percentile?tag=phi:0.95&tag=catalog:province`, en segundos, ventana de ~2 min) y el contador `catalog.requests.by` (etiquetas `method` y `status`). Hacen falta porque los percentiles de `http.server.requests` se reparten en una serie por método, estado y uri y Actuator los suma. La interfaz web (`frontend/`, sección Monitorización) las muestra —tráfico y latencia con gráficas de evolución, desglose por método y código de estado— junto al estado, la JVM, el pool y las cachés (con botón para vaciarlas).
 
+**Pantalla de Monitorización de la interfaz web** (sección «Monitorización», solo `ADMIN`; lee `/actuator/**` cada 10 s, desactivable, o con el botón «Actualizar»). Va ordenada por importancia, de arriba abajo:
+
+| Zona | Contenido |
+|------|-----------|
+| Cabecera | Estado global (`● UP`), versión, tiempo en marcha, hora de la última lectura, auto-refresh y «Actualizar» |
+| Tráfico | Cuatro tarjetas con gráfica de evolución: peticiones/s, latencia p95, conflictos 409/412 y errores 5xx. Se tiñen de **ámbar** si hay conflictos o el p95 supera 500 ms, y de **rojo** si hay errores 5xx. Las gráficas muestran las lecturas desde que se abrió la pantalla (unos 5 min con auto-refresh) |
+| Peticiones por catálogo | Por tipo: peticiones, **reparto** (% del total), peticiones/s, tiempo medio, **p95 / p99** (ventana de ~2 min; «—» si no hay peticiones recientes), tiempo máximo y 4xx/5xx (en gris si son 0, en rojo si no). Cuenta desde el arranque y solo peticiones de la API, no las de monitorización |
+| Distribución | Reparto por método HTTP (barra apilada) y recuento por código de estado, con 409/412 resaltados como conflictos de versión |
+| JVM, pool de BD y salud | Tres tarjetas: heap y CPU con barra de ocupación e hilos; conexiones en uso/máximo (barra), libres, hilos esperando y esperas agotadas; y una fila por cada comprobación de salud (`db`, `diskSpace`, `ping`…). Las barras pasan a ámbar desde el 75 % y a rojo desde el 90 % |
+| Cachés | Entradas, aciertos, fallos y ratio de aciertos (con barra) de cada caché; «Vaciar» una o «Vaciar todas» (pide confirmación). Con la caché desactivada no hay nada que listar |
+
+Si no se puede leer `/actuator` (backend caído, proxy sin reiniciar en desarrollo o usuario sin rol `ADMIN`) la pantalla lo avisa en lugar de mostrar datos vacíos. Las notas aclaratorias (qué cuenta cada cifra) están en los iconos ⓘ. Se adapta al ancho: 4 columnas, 2 por debajo de 1100 px y 1 en móvil.
+
 **Pool de conexiones (HikariCP)**: Spring Boot publica sus métricas sin configuración extra, p. ej.:
 
 ```bash
@@ -565,13 +584,23 @@ mvn -Pui spring-boot:run     # o: mvn -Pui package && java -jar target/masterdat
 
 El perfil `ui` descarga su propio Node, compila `frontend/` y lo copia a `static/`; sin él el build no necesita Node. La UI pide usuario y contraseña de un `ADMIN` (HTTP Basic). Para desarrollar con recarga en caliente sigue siendo mejor `npm start` en `frontend/` (puerto 4200, con proxy al backend).
 
-Para cargar las 19 comunidades/ciudades autónomas y las 52 provincias de España, con sus traducciones en/es y sus códigos INE, ejecuta [scripts/seed-catalogs.sql](scripts/seed-catalogs.sql) contra la base de datos. Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes:
+Para cargar los datos de ejemplo, ejecuta [scripts/seed-catalogs.sql](scripts/seed-catalogs.sql) contra la base de datos. Incluye, con sus traducciones en/es:
+
+| Tipo | Entradas |
+|------|----------|
+| `region`, `province` | 19 comunidades/ciudades autónomas y 52 provincias de España, con sus códigos INE |
+| `country` | 249 países (ISO 3166-1) |
+| `language` | 184 idiomas (ISO 639-1; sin los alias obsoletos `in`, `iw`, `ji` y `mo`) |
+| `currency` | 154 monedas (las de ISO 4217 que está usando algún país) |
+
+Los países, idiomas y monedas se generaron con los datos de localización del JDK (CLDR), así que sus nombres siguen esa fuente; los nombres en español de idiomas y monedas llevan la primera letra en mayúscula.
+Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes: Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes:
 
 ```bash
 psql -h localhost -U postgres -d postgres -f scripts/seed-catalogs.sql
 ```
 
-Solo inserta lo que falta (entradas por `ine_code` y traducciones por entrada e idioma): no borra ni modifica nada y se puede ejecutar varias veces. Como escribe directamente en la base de datos, si la caché está activada reinicia la app (o vacíala con `DELETE /actuator/caches`) para ver los datos nuevos.
+Solo inserta lo que falta (entradas por su código —`ine_code`, `alpha2`, `code`— y traducciones por entrada e idioma): no borra ni modifica nada y se puede ejecutar varias veces. Como escribe directamente en la base de datos, si la caché está activada reinicia la app (o vacíala con `DELETE /actuator/caches`) para ver los datos nuevos.
 
 ## API Docs (Swagger)
 - Swagger UI: http://localhost:8080/swagger-ui.html — un desplegable arriba a la derecha permite cambiar entre las dos APIs.

@@ -9,11 +9,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 
 import java.util.List;
 import java.util.Locale;
@@ -83,6 +86,26 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("Un valor demasiado largo o fuera de rango para su columna (SQLSTATE 22xxx) es 422, no un 409 de integridad")
+    void valueOutOfRangeIs422() {
+        ResponseEntity<Map<String, Object>> response = handler.handleDataIntegrityViolation(
+                new DataIntegrityViolationException("too long", new java.sql.SQLException("value too long", "22001")), Locale.ENGLISH);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(response.getBody()).containsEntry("message", "A value is too long or out of range for its field");
+    }
+
+    @Test
+    @DisplayName("Una clave única repetida (SQLSTATE 23505) es 409, con su propio mensaje")
+    void uniqueViolationIs409WithItsOwnMessage() {
+        ResponseEntity<Map<String, Object>> response = handler.handleDataIntegrityViolation(
+                new DataIntegrityViolationException("duplicate", new java.sql.SQLException("duplicate key", "23505")), ES);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).containsEntry("message", "Ya existe un valor que debe ser único (por ejemplo un código)");
+    }
+
+    @Test
     @DisplayName("Sin conexión con la base de datos (pool agotado o base caída) es 503, sin detalles internos")
     void databaseUnavailableIs503() {
         ResponseEntity<Map<String, Object>> response = handler.handleDatabaseUnavailable(
@@ -111,6 +134,35 @@ class ApiExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
         assertThat(response.getHeaders().getAllow()).isEmpty();
         assertThat(response.getBody()).containsEntry("message", "Method TRACE not allowed on this resource");
+    }
+
+    @Test
+    @DisplayName("Un error del cliente que Spring ya clasifica (Accept no soportado) conserva su 4xx, en JSON, y no es un 500")
+    void springClientErrorKeepsItsStatus() {
+        ResponseEntity<Map<String, Object>> response = handler.handleGeneric(
+                new HttpMediaTypeNotAcceptableException(List.of(MediaType.APPLICATION_JSON)), Locale.ENGLISH);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_ACCEPTABLE);
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+        assertThat(response.getBody()).containsEntry("status", 406)
+                .containsEntry("message", "The request cannot be processed");
+    }
+
+    @Test
+    @DisplayName("Un parámetro obligatorio ausente es 400, no 500")
+    void missingRequestParameterIs400() {
+        ResponseEntity<Map<String, Object>> response = handler.handleGeneric(
+                new MissingServletRequestParameterException("filter", "String"), Locale.ENGLISH);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @DisplayName("Los saltos de línea y otros caracteres de control del texto del cliente no llegan al log, y se acota su longitud")
+    void logSanitizerRemovesControlCharactersAndTruncates() {
+        assertThat(LogSanitizer.clean("a\r\nFAKE LOG LINE\tb")).isEqualTo("a  FAKE LOG LINE b");
+        assertThat(LogSanitizer.clean("x".repeat(LogSanitizer.MAX_LENGTH + 100))).hasSize(LogSanitizer.MAX_LENGTH + 1);
+        assertThat(LogSanitizer.clean(null)).isEqualTo("null");
     }
 
     @Test

@@ -46,6 +46,12 @@ Tipos configurados actualmente:
 |------------|--------|--------|--------------------|
 | `region`   | Comunidad autónoma de España (incl. Ceuta y Melilla) | `regions` + `region_translations` | `ineCode` |
 | `province` | Provincia de España (incl. Ceuta y Melilla) | `provinces` + `province_translations` | `ineCode`, `regionCode` |
+| `country`  | País (ISO 3166-1) | `countries` + `country_translations` | `alpha2`, `alpha3` |
+| `language` | Idioma (ISO 639) | `languages` + `language_translations` | `alpha2`, `alpha3` |
+| `currency` | Moneda (ISO 4217) | `currencies` + `currency_translations` | `code`, `numericCode`, `decimals`, `symbol` |
+| `street-type` | Tipo de vía (calle, avenida, plaza…) | `street_types` + `street_type_translations` | `abbreviation` |
+| `identity-document-type` | Tipo de documento de identidad (DNI, NIE, pasaporte…) | `identity_document_types` + `identity_document_type_translations` | `code`, `pattern` |
+| `tax-rate` | Tipo de IVA | `tax_rates` + `tax_rate_translations` | `rate`, `validFrom`, `validTo` |
 
 - `{type}` no distingue mayúsculas (`/api/catalogs/Province` = `/api/catalogs/province`).
 - Un tipo no configurado (p. ej. `/api/catalogs/widget`) devuelve **400**.
@@ -290,8 +296,14 @@ Cada tipo de catálogo puede tener campos propios además de los comunes:
 |---|---|
 | `region` | `ineCode` (entero, código INE 1–19, único) |
 | `province` | `ineCode` (entero, código INE 1–52, único), `regionCode` (entero, `ineCode` de su comunidad) |
+| `country` | `alpha2` (texto, ISO 3166-1 de 2 letras, p. ej. `ES`, único), `alpha3` (texto, 3 letras, p. ej. `ESP`, único) |
+| `language` | `alpha2` (texto, ISO 639-1, p. ej. `es`, único), `alpha3` (texto, ISO 639-2/T, p. ej. `spa`, único) |
+| `currency` | `code` (texto, ISO 4217, p. ej. `EUR`, único), `numericCode` (entero, p. ej. 978), `decimals` (entero, decimales habituales: EUR 2, JPY 0, KWD 3), `symbol` (texto, símbolo en inglés o el propio código si no tiene otro) |
+| `street-type` | `abbreviation` (texto, abreviatura habitual: `C/`, `Avda.`, `Pza.`) |
+| `identity-document-type` | `code` (texto, p. ej. `DNI`, único), `pattern` (texto, expresión regular con el formato del número, para validar formularios; solo comprueba el formato, no la letra o el dígito de control; `null` si el documento no tiene formato fijo) |
+| `tax-rate` | `rate` (número, porcentaje con 2 decimales: `21` = 21 %), `validFrom` y `validTo` (fechas ISO `2012-09-01`, ambas inclusivas; `validTo` vacío = sigue vigente). Es el primer tipo con decimales y fechas: admiten `eq`, `gt`, `gte`, `lt` y `lte` |
 
-Por ejemplo, las provincias de Andalucía: `GET /api/catalogs/province?filter=regionCode:1`.
+Por ejemplo, las provincias de Andalucía: `GET /api/catalogs/province?filter=regionCode:1`; la moneda con código `EUR`: `GET /api/catalogs/currency?filter=code:EUR`; las monedas sin decimales: `GET /api/catalogs/currency?filter=decimals:0`; los tipos de IVA del 10 % o más: `GET /api/catalogs/tax-rate?filter=rate.gte:10` (o los de antes de 2012 en la gestión: `GET /admin/api/catalogs/tax-rate?filter=validFrom.lt:2012-01-01`). Los campos de texto se filtran con «contiene» (sin distinguir mayúsculas), así que `alpha3:spa` devuelve también cualquier código que contenga `spa`; para un código exacto comprueba el resultado.
 
 - Viajan en el JSON como atributos normales de primer nivel (`"ineCode": 41`), tanto en la petición como en la respuesta.
 - Se pueden usar en `sortBy` y como filtro del listado (solo en su tipo; ver [punto 3](#3-consultas-filtrado-ordenación-y-paginación)).
@@ -326,6 +338,7 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 ```
 
 - El patch es **atómico**: si una operación falla, no se aplica ninguna.
+- Hay **topes** frente a patches hostiles (un `copy` encadenado puede duplicar el documento en cada operación): como máximo **50 operaciones**, y el documento no puede pasar de **10.000 valores** tras ninguna de ellas. Si se superan → 400.
 - `id`, `type`, `createdAt`, `updatedAt` y `version` no forman parte del documento y no se pueden modificar: `replace`/`remove` sobre ellos falla con 400, y un `add` se ignora.
 - El resultado se valida con las mismas reglas que POST/PUT (p. ej. quitar `/translations/en` → 400; añadir un atributo que no es campo del tipo → 422).
 
@@ -343,12 +356,14 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 
 | Regla | Respuesta |
 |-------|-----------|
-| `translations` presente y no vacío | 400 |
+| `translations` presente y no vacío, sin valores `null` | 400 |
 | `translations` incluye el idioma por defecto (`en`) y solo idiomas soportados (`en`, `es`) | 400 |
 | `name` obligatorio, no vacío, máx. 80 caracteres | 400 |
 | `description` máx. 500 caracteres | 400 |
 | **Nombre único** por tipo e idioma, sin distinguir mayúsculas (dos provincias no pueden llamarse "Seville" en `en`; una provincia y una comunidad sí, p. ej. "Madrid") | 409 |
-| Restricciones de base de datos (p. ej. `ineCode` repetido) | 409 |
+| Valor único repetido en un campo extra (p. ej. `ineCode`, `alpha2`, `code`) | 409 |
+| Valor demasiado largo o fuera de rango para su columna (p. ej. `alpha2` de 3 letras, `rate` de 1234,5) | 422 |
+| Otras restricciones de base de datos (p. ej. referencias de otros registros) | 409 |
 | `If-Match` debe ser la versión actual de la entrada | 412 |
 | Los atributos extra deben ser campos del tipo, con un valor convertible a su tipo de dato | 422 |
 | `sortBy` debe ser un campo ordenable del tipo | 422 |
@@ -371,6 +386,8 @@ Todas las respuestas de error tienen el mismo formato, con `message` localizado 
 
 `errors` solo aparece con el detalle de los campos inválidos (validaciones).
 
+Cualquier otro error del cliente que Spring ya clasifica como 4xx (p. ej. un parámetro obligatorio ausente) conserva su status, con el mensaje genérico «La petición no se puede procesar»; solo lo imprevisto es un 500, y nunca expone detalles internos. Los mensajes de error que se escriben en el log pasan antes por una limpieza (sin saltos de línea ni caracteres de control, máximo 500 caracteres) para que una petición no pueda falsificar líneas de log.
+
 | Status | Significado |
 |--------|-------------|
 | 400 | Petición mal formada: JSON inválido, validación fallida, tipo de catálogo desconocido, parámetro inválido, JSON Patch inválido |
@@ -380,8 +397,9 @@ Todas las respuestas de error tienen el mismo formato, con `message` localizado 
 | 405 | Método no permitido (p. ej. `POST` sobre la API de consulta) |
 | 409 | Nombre duplicado, `test` de JSON Patch fallido, violación de integridad en base de datos, u otra petición modificó la entrada en el mismo instante |
 | 412 | `If-Match` no coincide con la versión actual: otra persona modificó la entrada |
+| 406 | `Accept` que la API no puede servir (p. ej. `application/xml`); la respuesta de error va siempre en JSON |
 | 415 | `Content-Type` no soportado |
-| 422 | Petición bien formada pero no válida para el tipo: `sortBy` no ordenable, filtro no válido, o un campo extra desconocido o con un valor que no encaja |
+| 422 | Petición bien formada pero no válida para el tipo: `sortBy` no ordenable, filtro no válido, un campo extra desconocido o con un valor que no encaja, o un valor demasiado largo o fuera de rango para su columna |
 | 500 | Error interno |
 | 503 | Sin conexión con la base de datos: el pool está agotado durante más de 3 s o la base de datos no responde. Es temporal; se puede reintentar |
 
@@ -408,7 +426,7 @@ Los listados se vacían enteros porque cualquier cambio (nombre, peso, `enabled`
 
 **Posible mejora futura**: cachear también los listados **paginados sin `filter`** en `catalogLists:<type>`. Cambian exactamente cuando cambian los listados completos, así que la invalidación actual ya los cubriría; la clave añadiría la página y el tamaño (un número acotado de entradas: con 52 provincias y páginas de 20 son 3 páginas por idioma y orden) y se ahorrarían la consulta de datos y la del total. Bastaría el mismo `@Cacheable` con la misma condición en `CatalogQueryService#findPage`. Hoy no se hace porque la ganancia es pequeña: los listados paginados los usa sobre todo el backoffice, con poco tráfico, y los catálogos son pequeños. Merecería la pena si algún consumidor de la API de consulta empieza a paginar (p. ej. un listado con scroll infinito).
 
-> **Estado actual:** en `application.yml` la caché está **desactivada** (`app.catalog.cache.enabled: false`). Para activarla basta con poner `enabled: true`; la configuración propia de `region` y `province` (tamaño y caducidad de 12 h) ya está declarada.
+> **Estado actual:** en `application.yml` la caché está **activada** (`app.catalog.cache.enabled: true`), con la configuración propia de cada tipo (tamaño y caducidad de 12 h). Para desactivarla basta con poner `enabled: false`.
 
 La configuración no depende de la librería de caché (hoy Caffeine; cambiarla es añadir otra implementación de `CatalogCacheProvider`, en `infrastructure/cache/spi`):
 
@@ -498,6 +516,21 @@ Endpoints expuestos (`management.endpoints.web.exposure.include`): `health`, `in
 | `/actuator/metrics` | lista de métricas disponibles |
 | `/actuator/caches` | cachés; `DELETE` para vaciarlas ([punto 9](#9-caché)) |
 
+**Peticiones por catálogo**: `http.server.requests` lleva además la etiqueta `catalog` (el tipo, o `none` fuera de `/{type}`; `CatalogRequestObservationConvention`), porque su `uri` es solo la plantilla `/api/catalogs/{type}`. P. ej. `/actuator/metrics/http.server.requests?tag=catalog:province` (añadir `&tag=outcome:CLIENT_ERROR` para los 4xx). Además `CatalogRequestObservationHandler` publica, solo para las peticiones a `/{type}`: los temporizadores `catalog.requests` (etiqueta `catalog`) y `catalog.requests.all` con percentiles p95/p99 (`/actuator/metrics/catalog.requests.percentile?tag=phi:0.95&tag=catalog:province`, en segundos, ventana de ~2 min) y el contador `catalog.requests.by` (etiquetas `method` y `status`). Hacen falta porque los percentiles de `http.server.requests` se reparten en una serie por método, estado y uri y Actuator los suma. La interfaz web (`frontend/`, sección Monitorización) las muestra —tráfico y latencia con gráficas de evolución, desglose por método y código de estado— junto al estado, la JVM, el pool y las cachés (con botón para vaciarlas).
+
+**Pantalla de Monitorización de la interfaz web** (sección «Monitorización», solo `ADMIN`; lee `/actuator/**` cada 10 s, desactivable, o con el botón «Actualizar»). Va ordenada por importancia, de arriba abajo:
+
+| Zona | Contenido |
+|------|-----------|
+| Cabecera | Estado global (`● UP`), versión, tiempo en marcha, hora de la última lectura, auto-refresh y «Actualizar» |
+| Tráfico | Cuatro tarjetas con gráfica de evolución: peticiones/s, latencia p95, conflictos 409/412 y errores 5xx. Se tiñen de **ámbar** si hay conflictos o el p95 supera 500 ms, y de **rojo** si hay errores 5xx. Las gráficas muestran las lecturas desde que se abrió la pantalla (unos 5 min con auto-refresh) |
+| Peticiones por catálogo | Por tipo: peticiones, **reparto** (% del total), peticiones/s, tiempo medio, **p95 / p99** (ventana de ~2 min; «—» si no hay peticiones recientes), tiempo máximo y 4xx/5xx (en gris si son 0, en rojo si no). Cuenta desde el arranque y solo peticiones de la API, no las de monitorización |
+| Distribución | Reparto por método HTTP (barra apilada) y recuento por código de estado, con 409/412 resaltados como conflictos de versión |
+| JVM, pool de BD y salud | Tres tarjetas: heap y CPU con barra de ocupación e hilos; conexiones en uso/máximo (barra), libres, hilos esperando y esperas agotadas; y una fila por cada comprobación de salud (`db`, `diskSpace`, `ping`…). Las barras pasan a ámbar desde el 75 % y a rojo desde el 90 % |
+| Cachés | Entradas, aciertos, fallos y ratio de aciertos (con barra) de cada caché; «Vaciar» una o «Vaciar todas» (pide confirmación). Con la caché desactivada no hay nada que listar |
+
+Si no se puede leer `/actuator` (backend caído, proxy sin reiniciar en desarrollo o usuario sin rol `ADMIN`) la pantalla lo avisa en lugar de mostrar datos vacíos. Las notas aclaratorias (qué cuenta cada cifra) están en los iconos ⓘ. Se adapta al ancho: 4 columnas, 2 por debajo de 1100 px y 1 en móvil.
+
 **Pool de conexiones (HikariCP)**: Spring Boot publica sus métricas sin configuración extra, p. ej.:
 
 ```bash
@@ -551,13 +584,34 @@ mvn spring-boot:run
 ```
 La app arranca en http://localhost:8080.
 
-Para cargar las 19 comunidades/ciudades autónomas y las 52 provincias de España, con sus traducciones en/es y sus códigos INE, ejecuta [scripts/seed-catalogs.sql](scripts/seed-catalogs.sql) contra la base de datos. Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes:
+**Con la interfaz web** (backoffice Angular de `frontend/`, servida por el propio Spring Boot en http://localhost:8080/):
+
+```bash
+mvn -Pui spring-boot:run     # o: mvn -Pui package && java -jar target/masterdata-service-*.jar
+```
+
+El perfil `ui` descarga su propio Node, compila `frontend/` y lo copia a `static/`; sin él el build no necesita Node. La UI pide usuario y contraseña de un `ADMIN` (HTTP Basic). Para desarrollar con recarga en caliente sigue siendo mejor `npm start` en `frontend/` (puerto 4200, con proxy al backend).
+
+Para cargar los datos de ejemplo, ejecuta [scripts/seed-catalogs.sql](scripts/seed-catalogs.sql) contra la base de datos. Incluye, con sus traducciones en/es:
+
+| Tipo | Entradas |
+|------|----------|
+| `region`, `province` | 19 comunidades/ciudades autónomas y 52 provincias de España, con sus códigos INE |
+| `country` | 249 países (ISO 3166-1) |
+| `language` | 184 idiomas (ISO 639-1; sin los alias obsoletos `in`, `iw`, `ji` y `mo`) |
+| `currency` | 154 monedas (las de ISO 4217 que está usando algún país) |
+| `street-type` | 19 tipos de vía con su abreviatura (los seis más usados salen primero, por peso) |
+| `identity-document-type` | DNI, NIE, TIE, CIF, pasaporte y «otro documento», con el formato de su número |
+| `tax-rate` | IVA español: general 21 %, reducido 10 %, superreducido 4 % y exento 0 %, más el 18 % y el 8 % de 2010-2012 (desactivados, con `validTo`) |
+
+Los países, idiomas y monedas se generaron con los datos de localización del JDK (CLDR), así que sus nombres siguen esa fuente; los nombres en español de idiomas y monedas llevan la primera letra en mayúscula. Los tipos de vía, de documento y de IVA están escritos a mano: revisa los tipos de IVA y las fechas antes de usarlos en producción, porque cambian con la ley.
+Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes: Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes:
 
 ```bash
 psql -h localhost -U postgres -d postgres -f scripts/seed-catalogs.sql
 ```
 
-Solo inserta lo que falta (entradas por `ine_code` y traducciones por entrada e idioma): no borra ni modifica nada y se puede ejecutar varias veces. Como escribe directamente en la base de datos, si la caché está activada reinicia la app (o vacíala con `DELETE /actuator/caches`) para ver los datos nuevos.
+Solo inserta lo que falta (entradas por su código —`ine_code`, `alpha2`, `code`— y traducciones por entrada e idioma): no borra ni modifica nada y se puede ejecutar varias veces. Como escribe directamente en la base de datos, si la caché está activada reinicia la app (o vacíala con `DELETE /actuator/caches`) para ver los datos nuevos.
 
 ## API Docs (Swagger)
 - Swagger UI: http://localhost:8080/swagger-ui.html — un desplegable arriba a la derecha permite cambiar entre las dos APIs.

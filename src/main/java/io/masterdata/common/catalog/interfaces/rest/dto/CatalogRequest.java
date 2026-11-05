@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -48,7 +49,7 @@ public class CatalogRequest {
     @Schema(description = "Traducciones de la entrada; clave = locale (\"en\", \"es\"...), debe incluir al menos el idioma por defecto (en)",
             example = "{\"en\":{\"name\":\"Logitech\",\"description\":\"Peripheral manufacturer\"},"
                     + "\"es\":{\"name\":\"Logitech\",\"description\":\"Fabricante de periféricos\"}}")
-    private Map<String, @Valid CatalogTranslationRequest> translations;
+    private Map<String, @NotNull @Valid CatalogTranslationRequest> translations;
 
     /**
      * Campos adicionales propios de {@code type} (p. ej. {@code regionCode} solo para

@@ -89,6 +89,14 @@ class CatalogTypeControllerTest {
     }
 
     @Test
+    @WithAnonymousUser
+    void security_letsAnonymousFetchTheUiFilesButNothingElse() throws Exception {
+        // Not 401 (whether the file exists depends on the "ui" Maven profile having packaged it).
+        mockMvc.perform(get("/favicon.ico")).andExpect(status().is(org.hamcrest.Matchers.not(401)));
+        mockMvc.perform(get("/secret.txt")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @WithMockUser(roles = "USER")
     void security_returns403WithoutAdminRole() throws Exception {
         mockMvc.perform(get("/admin/api/catalogs"))

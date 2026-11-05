@@ -87,7 +87,7 @@ app:
   catalog:
     cache:
       provider: caffeine
-      enabled: false
+      enabled: true
       maximum-size: 1000
       expire-after-write: 10m
       expire-after-access: 10m
@@ -109,6 +109,56 @@ app:
           es: Provincia
         cache:
           maximum-size: 200
+          expire-after-write: 12h
+      # Países (ISO 3166), idiomas (ISO 639) y monedas (ISO 4217)
+      country:
+        entity-class: io.masterdata.catalog.CountryEntity
+        names:
+          en: Country
+          es: País
+        cache:
+          maximum-size: 300
+          expire-after-write: 12h
+      language:
+        entity-class: io.masterdata.catalog.LanguageEntity
+        names:
+          en: Language
+          es: Idioma
+        cache:
+          maximum-size: 200
+          expire-after-write: 12h
+      currency:
+        entity-class: io.masterdata.catalog.CurrencyEntity
+        names:
+          en: Currency
+          es: Moneda
+        cache:
+          maximum-size: 200
+          expire-after-write: 12h
+      # Direcciones, documentos de identidad e impuestos
+      street-type:
+        entity-class: io.masterdata.catalog.StreetTypeEntity
+        names:
+          en: Street type
+          es: Tipo de vía
+        cache:
+          maximum-size: 100
+          expire-after-write: 12h
+      identity-document-type:
+        entity-class: io.masterdata.catalog.IdentityDocumentTypeEntity
+        names:
+          en: Identity document type
+          es: Tipo de documento de identidad
+        cache:
+          maximum-size: 50
+          expire-after-write: 12h
+      tax-rate:
+        entity-class: io.masterdata.catalog.TaxRateEntity
+        names:
+          en: VAT rate
+          es: Tipo de IVA
+        cache:
+          maximum-size: 100
           expire-after-write: 12h
   # Configuración de seguridad básica para el acceso a los endpoints de la API y Swagger UI.
   # Se utiliza un usuario "admin" con contraseña encriptada.

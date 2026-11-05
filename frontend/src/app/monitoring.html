@@ -1,0 +1,202 @@
+<header class="head">
+  <h2>{{ i18n.t('navMonitoring') }}</h2>
+  @if (snapshot(); as s) {
+    <span class="pill" [class]="healthClass(s.health?.status)">● {{ s.health?.status ?? '—' }}</span>
+    <span class="muted">{{ i18n.t('version') }} {{ s.build?.version ?? '—' }} · {{ i18n.t('uptime') }} {{ duration(s.uptimeSeconds) }}</span>
+  }
+  <span class="spacer"></span>
+  @if (snapshot(); as s) {
+    <span class="muted">{{ i18n.t('snapshotAt', time(s.takenAt)) }}</span>
+  }
+  <label class="auto"><input type="checkbox" [ngModel]="auto()" (ngModelChange)="auto.set($event)" /> {{ i18n.t('autoRefresh') }}</label>
+  <button type="button" (click)="reload()" [disabled]="loading()">{{ i18n.t('refresh') }}</button>
+</header>
+
+@if (unreachable()) {
+  <p class="error" role="alert">{{ i18n.t('actuatorUnreachable') }}</p>
+}
+
+@if (snapshot(); as s) {
+  <div class="stats">
+    <div class="stat">
+      <span class="label">{{ i18n.t('requestsPerSecond') }}</span>
+      <span class="value">{{ num(last(requestRates()), 1) }}</span>
+      <app-sparkline [values]="requestRates()" color="#1a56db" />
+    </div>
+    <div class="stat" [class.caution]="p95Slow()">
+      <span class="label">{{ i18n.t('latencyP95') }}</span>
+      <span class="value">{{ s.traffic.p95Ms == null ? '—' : ms(s.traffic.p95Ms) }}</span>
+      <app-sparkline [values]="p95Series()" color="#6250d6" />
+    </div>
+    <div class="stat" [class.caution]="(conflicts() ?? 0) > 0">
+      <span class="label">{{ i18n.t('conflicts') }}</span>
+      <span class="value">{{ num(conflicts()) }}</span>
+      <app-sparkline [values]="conflictSeries()" color="#b54708" />
+    </div>
+    <div class="stat" [class.alert]="(serverErrors() ?? 0) > 0">
+      <span class="label">{{ i18n.t('serverErrors') }}</span>
+      <span class="value" [class.ok]="serverErrors() === 0" [class.bad]="(serverErrors() ?? 0) > 0">{{ num(serverErrors()) }}</span>
+      <app-sparkline [values]="errorSeries()" color="#067647" />
+    </div>
+  </div>
+  <p class="muted hint">{{ i18n.t('trafficHint') }}</p>
+
+  <div class="main">
+    <section class="panel">
+      <h3>{{ i18n.t('requestsByCatalog') }} <span class="info" tabindex="0" role="note" [attr.title]="i18n.t('requestsHint')" [attr.aria-label]="i18n.t('requestsHint')">ⓘ</span></h3>
+      @if (anyRequests()) {
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{{ i18n.t('catalog') }}</th>
+                <th class="num">{{ i18n.t('requests') }}</th>
+                <th class="share-col">{{ i18n.t('share') }}</th>
+                <th class="num">{{ i18n.t('reqPerSecShort') }}</th>
+                <th class="num">{{ i18n.t('avgTime') }}</th>
+                <th class="num">p95 / p99</th>
+                <th class="num">{{ i18n.t('maxTime') }}</th>
+                <th class="num">4xx</th>
+                <th class="num">5xx</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of s.requests; track r.type) {
+                <tr>
+                  <td>{{ r.name }} <span class="code">{{ r.type }}</span></td>
+                  <td class="num">{{ num(r.count) }}</td>
+                  <td class="share-col">
+                    <span class="share"><span class="bar-track"><span class="bar-fill" [style.width.%]="share(r.count)"></span></span>{{ num(share(r.count)) }} %</span>
+                  </td>
+                  <td class="num">{{ num(catalogRates()[r.type], 1) }}</td>
+                  <td class="num">{{ ms(r.avgMs) }}</td>
+                  <td class="num">{{ pair(r.p95Ms, r.p99Ms) }}</td>
+                  <td class="num">{{ ms(r.maxMs) }}</td>
+                  <td class="num" [class.bad]="r.clientErrors > 0" [class.dim]="r.clientErrors === 0">{{ num(r.clientErrors) }}</td>
+                  <td class="num" [class.bad]="r.serverErrors > 0" [class.dim]="r.serverErrors === 0">{{ num(r.serverErrors) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="muted">{{ i18n.t('noData') }}</p>
+      }
+    </section>
+
+    <section class="panel">
+      <h3>{{ i18n.t('distribution') }}</h3>
+      <h4>{{ i18n.t('byMethod') }}</h4>
+      @if (methods().length) {
+        <div class="split">
+          @for (m of methods(); track m.name) {
+            <span [style.flex]="m.count" [style.background]="m.color"></span>
+          }
+        </div>
+        <div class="legend">
+          @for (m of methods(); track m.name) {
+            <span><i [style.background]="m.color"></i>{{ m.name }} {{ num(m.percent) }} %</span>
+          }
+        </div>
+      } @else {
+        <p class="muted">{{ i18n.t('noData') }}</p>
+      }
+      <h4>{{ i18n.t('byStatus') }} <span class="info" tabindex="0" role="note" [attr.title]="i18n.t('conflictsHint')" [attr.aria-label]="i18n.t('conflictsHint')">ⓘ</span></h4>
+      @if (statuses().length) {
+        <div class="chips">
+          @for (t of statuses(); track t.name) {
+            <span class="chip" [class]="statusClass(t.name)">{{ t.name }} · {{ num(t.count) }}</span>
+          }
+        </div>
+      } @else {
+        <p class="muted">{{ i18n.t('noData') }}</p>
+      }
+    </section>
+  </div>
+
+  <div class="resources">
+    <section class="panel">
+      <h3>{{ i18n.t('jvm') }}</h3>
+      <div class="meter">
+        <div class="meter-row"><span>{{ i18n.t('heap') }}</span><b>{{ megabytes(s.heapUsed) }}<small> / {{ megabytes(s.heapMax) }}</small></b></div>
+        <span class="bar-track"><span class="bar-fill" [class]="level(heapPercent())" [style.width.%]="heapPercent() ?? 0"></span></span>
+      </div>
+      <div class="meter">
+        <div class="meter-row"><span>{{ i18n.t('cpu') }}</span><b>{{ percent(cpuPercent()) }}</b></div>
+        <span class="bar-track"><span class="bar-fill" [class]="level(cpuPercent())" [style.width.%]="cpuPercent() ?? 0"></span></span>
+      </div>
+      <dl>
+        <dt>{{ i18n.t('threads') }}</dt><dd>{{ num(s.threads) }}</dd>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h3>{{ i18n.t('pool') }}</h3>
+      <div class="meter">
+        <div class="meter-row"><span>{{ i18n.t('poolActive') }}</span><b>{{ num(s.pool.active) }} / {{ num(s.pool.max) }}</b></div>
+        <span class="bar-track"><span class="bar-fill" [class]="level(poolPercent())" [style.width.%]="poolPercent() ?? 0"></span></span>
+      </div>
+      <dl>
+        <dt>{{ i18n.t('poolIdle') }}</dt><dd>{{ num(s.pool.idle) }}</dd>
+        <dt>{{ i18n.t('poolPending') }}</dt><dd [class.bad]="(s.pool.pending ?? 0) > 0">{{ num(s.pool.pending) }}</dd>
+        <dt>{{ i18n.t('poolTimeouts') }}</dt><dd [class.bad]="(s.pool.timeout ?? 0) > 0">{{ num(s.pool.timeout) }}</dd>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h3>{{ i18n.t('healthChecks') }}</h3>
+      @if (s.health?.components; as components) {
+        <ul class="rows">
+          @for (c of components | keyvalue; track c.key) {
+            <li><span class="dot" [class]="healthClass(c.value.status)"></span>{{ c.key }}<span class="state" [class]="healthClass(c.value.status)">{{ c.value.status }}</span></li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">{{ s.health?.status ?? '—' }}</p>
+      }
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h3>{{ i18n.t('caches') }}</h3>
+      @if (s.caches.length) {
+        <button type="button" class="danger" (click)="clear()">{{ i18n.t('clearAll') }}</button>
+      }
+    </div>
+    @if (s.caches.length) {
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ i18n.t('cache') }}</th>
+              <th class="num">{{ i18n.t('cacheEntries') }}</th>
+              <th class="num">{{ i18n.t('hits') }}</th>
+              <th class="num">{{ i18n.t('misses') }}</th>
+              <th class="share-col">{{ i18n.t('hitRatio') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of s.caches; track c.name) {
+              <tr>
+                <td><span class="code">{{ c.name }}</span></td>
+                <td class="num">{{ num(c.size) }}</td>
+                <td class="num">{{ num(c.hits) }}</td>
+                <td class="num">{{ num(c.misses) }}</td>
+                <td class="share-col">
+                  <span class="share"><span class="bar-track"><span class="bar-fill ok" [style.width.%]="hitRatio(c) ?? 0"></span></span>{{ percent(hitRatio(c)) }}</span>
+                </td>
+                <td class="actions"><button type="button" (click)="clear(c)">{{ i18n.t('clearCache') }}</button></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted">{{ i18n.t('noCaches') }}</p>
+    }
+  </section>
+} @else {
+  <p class="muted">{{ i18n.t('loading') }}</p>
+}

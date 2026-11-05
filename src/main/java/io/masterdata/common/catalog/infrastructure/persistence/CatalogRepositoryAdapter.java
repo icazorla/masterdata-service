@@ -394,6 +394,9 @@ public class CatalogRepositoryAdapter implements CatalogRepository {
             entity = mergeIntoExisting(d, catalog);
         }
         em.flush(); // la respuesta lleva ya la nueva version y updatedAt
+        // Lo que devuelve la API es lo guardado: la base de datos puede haber ajustado un valor (p. ej. 5.555 → 5.56
+        // en una columna numeric(5,2)).
+        em.refresh(entity);
         return toDomain(d, entity);
     }
 

@@ -1,0 +1,67 @@
+<header>
+  <h1>{{ i18n.t('appTitle') }}</h1>
+  @if (auth.header()) {
+    <nav>
+      <button type="button" [class.active]="view() === 'catalogs'" (click)="showCatalogs()">{{ i18n.t('navCatalogs') }}</button>
+      <button type="button" [class.active]="view() === 'monitoring'" (click)="view.set('monitoring')">{{ i18n.t('navMonitoring') }}</button>
+    </nav>
+    <select [ngModel]="selectedCode()" (ngModelChange)="open($event)" [attr.aria-label]="i18n.t('catalog')">
+      <option [ngValue]="null" disabled>{{ i18n.t('selectCatalog') }}</option>
+      @for (t of types(); track t.type) {
+        <option [ngValue]="t.type">{{ t.name }}</option>
+      }
+    </select>
+  }
+  <select class="lang" [ngModel]="i18n.lang()" (ngModelChange)="i18n.lang.set($event)" [attr.aria-label]="i18n.t('language')">
+    @for (l of langs; track l.code) {
+      <option [value]="l.code">{{ l.name }}</option>
+    }
+  </select>
+  @if (auth.header()) {
+    <button type="button" class="logout" (click)="logout()">{{ i18n.t('signOut') }}</button>
+  }
+</header>
+
+<main>
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+  @if (!auth.header()) {
+    <form class="login" (ngSubmit)="login()">
+      <h2>{{ i18n.t('signIn') }}</h2>
+      <label>{{ i18n.t('user') }} <input name="user" [(ngModel)]="user" autocomplete="username" required /></label>
+      <label>{{ i18n.t('password') }} <input name="password" type="password" [(ngModel)]="password" autocomplete="current-password" required /></label>
+      <button type="submit">{{ i18n.t('signIn') }}</button>
+    </form>
+  } @else if (view() === 'monitoring') {
+    <app-monitoring [types]="types()" />
+  } @else if (selected(); as type) {
+    <button type="button" class="back" (click)="selectedCode.set(null)">{{ i18n.t('backToCatalogs') }}</button>
+    <h2>{{ type.name }}</h2>
+    <app-catalog-crud [type]="type" />
+  } @else {
+    <section class="hero">
+      <h2>{{ i18n.t('homeTitle') }}</h2>
+      <p>{{ i18n.t('homeHint') }}</p>
+    </section>
+    <div class="cards">
+      @for (t of types(); track t.type; let i = $index) {
+        <button type="button" class="card" (click)="open(t.type)">
+          <span class="top">
+            <span class="tile" [style.background]="tiles[i % tiles.length][0]" [style.color]="tiles[i % tiles.length][1]" aria-hidden="true">{{ t.name.charAt(0).toUpperCase() }}</span>
+            <span>
+              <h3>{{ t.name }}</h3>
+              <span class="code">{{ t.type }}</span>
+            </span>
+          </span>
+          <span class="chips">
+            @for (f of chips(t); track f) {
+              <span class="chip">{{ f }}</span>
+            }
+          </span>
+          <span class="foot">{{ i18n.t('manage') }} →</span>
+        </button>
+      }
+    </div>
+  }
+</main>

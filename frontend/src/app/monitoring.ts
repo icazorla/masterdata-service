@@ -16,6 +16,8 @@ const METHOD_COLORS: Record<string, string> = { GET: '#1a56db', POST: '#eb6834',
 const OTHER_METHOD_COLOR = '#98a2b3';
 /** Statuses worth flagging: version conflicts between editors (409/412). */
 const CONFLICTS = ['409', '412'];
+/** Above this p95 the latency card turns amber. */
+const P95_WARN_MS = 500;
 
 /** What each reading adds to the trend lines; counters are cumulative, the lines show what changed between readings. */
 interface Sample {
@@ -66,6 +68,16 @@ export class Monitoring {
     return !!s && s.health == null && s.uptimeSeconds == null;
   });
   protected readonly anyRequests = computed(() => this.snapshot()?.requests.some((r) => r.count > 0) ?? false);
+  protected readonly totalRequests = computed(() => this.snapshot()?.requests.reduce((n, r) => n + r.count, 0) ?? 0);
+  protected readonly cpuPercent = computed(() => {
+    const cpu = this.snapshot()?.cpu;
+    return cpu == null ? null : cpu * 100;
+  });
+  protected readonly poolPercent = computed(() => {
+    const pool = this.snapshot()?.pool;
+    return pool?.active != null && pool.max ? (pool.active / pool.max) * 100 : null;
+  });
+  protected readonly p95Slow = computed(() => (this.snapshot()?.traffic.p95Ms ?? 0) > P95_WARN_MS);
 
   private readonly history = signal<Sample[]>([]);
   protected readonly requestRates = computed(() => this.changes((s) => s.total, true));
@@ -129,6 +141,23 @@ export class Monitoring {
   protected clear(ref?: CacheRef) {
     if (!ref && !confirm(this.i18n.t('confirmClearAll'))) return;
     this.api.clearCaches(ref).subscribe({ next: () => this.reload(), error: () => this.reload() });
+  }
+
+  /** Share of all catalog requests, in percent. */
+  protected share(count: number) {
+    const total = this.totalRequests();
+    return total ? (count / total) * 100 : 0;
+  }
+
+  /** "p95 / p99", with "—" for the one that has no recent requests behind it. */
+  protected pair(p95: number | null, p99: number | null) {
+    if (p95 == null && p99 == null) return '—';
+    return `${p95 == null ? '—' : this.ms(p95)} / ${p99 == null ? '—' : this.ms(p99)}`;
+  }
+
+  /** Color of an occupancy bar: amber from 75 %, red from 90 %. */
+  protected level(percent: number | null) {
+    return percent == null ? '' : percent >= 90 ? 'bad' : percent >= 75 ? 'warn' : '';
   }
 
   protected healthClass(status?: string) {

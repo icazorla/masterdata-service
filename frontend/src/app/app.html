@@ -34,7 +34,6 @@
       <button type="submit">{{ i18n.t('signIn') }}</button>
     </form>
   } @else if (view() === 'monitoring') {
-    <h2>{{ i18n.t('navMonitoring') }}</h2>
     <app-monitoring [types]="types()" />
   } @else if (selected(); as type) {
     <button type="button" class="back" (click)="selectedCode.set(null)">{{ i18n.t('backToCatalogs') }}</button>

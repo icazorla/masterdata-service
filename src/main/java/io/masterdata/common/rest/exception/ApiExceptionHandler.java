@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -49,6 +50,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class ApiExceptionHandler {
+
+    /** SQLSTATE de PostgreSQL para una restricción UNIQUE violada. */
+    private static final String UNIQUE_VIOLATION = "23505";
 
     private final MessageSource messageSource;
 
@@ -109,8 +113,29 @@ public class ApiExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex, Locale locale) {
         log.warn("{}", LogSanitizer.clean(ex.getMessage()));
+        String sqlState = sqlState(ex);
+        // SQLSTATE clase 22 = dato inválido para la columna (texto demasiado largo, número fuera de rango):
+        // es un valor del cliente, no un conflicto con otros registros.
+        if (sqlState != null && sqlState.startsWith("22")) {
+            return build(HttpStatus.UNPROCESSABLE_ENTITY,
+                    messageSource.getMessage("error.valueOutOfRange", null, locale), List.of());
+        }
+        if (UNIQUE_VIOLATION.equals(sqlState)) {
+            return build(HttpStatus.CONFLICT,
+                    messageSource.getMessage("error.duplicateValue", null, locale), List.of());
+        }
         return build(HttpStatus.CONFLICT,
                 messageSource.getMessage("error.dataIntegrityViolation", null, locale), List.of());
+    }
+
+    /** El SQLSTATE de la primera {@link SQLException} de la cadena de causas; {@code null} si no hay. */
+    private static String sqlState(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql && sql.getSQLState() != null) {
+                return sql.getSQLState();
+            }
+        }
+        return null;
     }
 
     /**

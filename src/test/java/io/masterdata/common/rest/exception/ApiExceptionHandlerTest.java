@@ -86,6 +86,26 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("Un valor demasiado largo o fuera de rango para su columna (SQLSTATE 22xxx) es 422, no un 409 de integridad")
+    void valueOutOfRangeIs422() {
+        ResponseEntity<Map<String, Object>> response = handler.handleDataIntegrityViolation(
+                new DataIntegrityViolationException("too long", new java.sql.SQLException("value too long", "22001")), Locale.ENGLISH);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(response.getBody()).containsEntry("message", "A value is too long or out of range for its field");
+    }
+
+    @Test
+    @DisplayName("Una clave única repetida (SQLSTATE 23505) es 409, con su propio mensaje")
+    void uniqueViolationIs409WithItsOwnMessage() {
+        ResponseEntity<Map<String, Object>> response = handler.handleDataIntegrityViolation(
+                new DataIntegrityViolationException("duplicate", new java.sql.SQLException("duplicate key", "23505")), ES);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).containsEntry("message", "Ya existe un valor que debe ser único (por ejemplo un código)");
+    }
+
+    @Test
     @DisplayName("Sin conexión con la base de datos (pool agotado o base caída) es 503, sin detalles internos")
     void databaseUnavailableIs503() {
         ResponseEntity<Map<String, Object>> response = handler.handleDatabaseUnavailable(

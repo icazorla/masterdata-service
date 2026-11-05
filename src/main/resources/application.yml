@@ -135,6 +135,31 @@ app:
         cache:
           maximum-size: 200
           expire-after-write: 12h
+      # Direcciones, documentos de identidad e impuestos
+      street-type:
+        entity-class: io.masterdata.catalog.StreetTypeEntity
+        names:
+          en: Street type
+          es: Tipo de vía
+        cache:
+          maximum-size: 100
+          expire-after-write: 12h
+      identity-document-type:
+        entity-class: io.masterdata.catalog.IdentityDocumentTypeEntity
+        names:
+          en: Identity document type
+          es: Tipo de documento de identidad
+        cache:
+          maximum-size: 50
+          expire-after-write: 12h
+      tax-rate:
+        entity-class: io.masterdata.catalog.TaxRateEntity
+        names:
+          en: VAT rate
+          es: Tipo de IVA
+        cache:
+          maximum-size: 100
+          expire-after-write: 12h
   # Configuración de seguridad básica para el acceso a los endpoints de la API y Swagger UI.
   # Se utiliza un usuario "admin" con contraseña encriptada.
   security:

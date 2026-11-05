@@ -49,6 +49,9 @@ Tipos configurados actualmente:
 | `country`  | País (ISO 3166-1) | `countries` + `country_translations` | `alpha2`, `alpha3` |
 | `language` | Idioma (ISO 639) | `languages` + `language_translations` | `alpha2`, `alpha3` |
 | `currency` | Moneda (ISO 4217) | `currencies` + `currency_translations` | `code`, `numericCode`, `decimals`, `symbol` |
+| `street-type` | Tipo de vía (calle, avenida, plaza…) | `street_types` + `street_type_translations` | `abbreviation` |
+| `identity-document-type` | Tipo de documento de identidad (DNI, NIE, pasaporte…) | `identity_document_types` + `identity_document_type_translations` | `code`, `pattern` |
+| `tax-rate` | Tipo de IVA | `tax_rates` + `tax_rate_translations` | `rate`, `validFrom`, `validTo` |
 
 - `{type}` no distingue mayúsculas (`/api/catalogs/Province` = `/api/catalogs/province`).
 - Un tipo no configurado (p. ej. `/api/catalogs/widget`) devuelve **400**.
@@ -296,8 +299,11 @@ Cada tipo de catálogo puede tener campos propios además de los comunes:
 | `country` | `alpha2` (texto, ISO 3166-1 de 2 letras, p. ej. `ES`, único), `alpha3` (texto, 3 letras, p. ej. `ESP`, único) |
 | `language` | `alpha2` (texto, ISO 639-1, p. ej. `es`, único), `alpha3` (texto, ISO 639-2/T, p. ej. `spa`, único) |
 | `currency` | `code` (texto, ISO 4217, p. ej. `EUR`, único), `numericCode` (entero, p. ej. 978), `decimals` (entero, decimales habituales: EUR 2, JPY 0, KWD 3), `symbol` (texto, símbolo en inglés o el propio código si no tiene otro) |
+| `street-type` | `abbreviation` (texto, abreviatura habitual: `C/`, `Avda.`, `Pza.`) |
+| `identity-document-type` | `code` (texto, p. ej. `DNI`, único), `pattern` (texto, expresión regular con el formato del número, para validar formularios; solo comprueba el formato, no la letra o el dígito de control; `null` si el documento no tiene formato fijo) |
+| `tax-rate` | `rate` (número, porcentaje con 2 decimales: `21` = 21 %), `validFrom` y `validTo` (fechas ISO `2012-09-01`, ambas inclusivas; `validTo` vacío = sigue vigente). Es el primer tipo con decimales y fechas: admiten `eq`, `gt`, `gte`, `lt` y `lte` |
 
-Por ejemplo, las provincias de Andalucía: `GET /api/catalogs/province?filter=regionCode:1`; la moneda con código `EUR`: `GET /api/catalogs/currency?filter=code:EUR`; las monedas sin decimales: `GET /api/catalogs/currency?filter=decimals:0`. Los campos de texto se filtran con «contiene» (sin distinguir mayúsculas), así que `alpha3:spa` devuelve también cualquier código que contenga `spa`; para un código exacto comprueba el resultado.
+Por ejemplo, las provincias de Andalucía: `GET /api/catalogs/province?filter=regionCode:1`; la moneda con código `EUR`: `GET /api/catalogs/currency?filter=code:EUR`; las monedas sin decimales: `GET /api/catalogs/currency?filter=decimals:0`; los tipos de IVA del 10 % o más: `GET /api/catalogs/tax-rate?filter=rate.gte:10` (o los de antes de 2012 en la gestión: `GET /admin/api/catalogs/tax-rate?filter=validFrom.lt:2012-01-01`). Los campos de texto se filtran con «contiene» (sin distinguir mayúsculas), así que `alpha3:spa` devuelve también cualquier código que contenga `spa`; para un código exacto comprueba el resultado.
 
 - Viajan en el JSON como atributos normales de primer nivel (`"ineCode": 41`), tanto en la petición como en la respuesta.
 - Se pueden usar en `sortBy` y como filtro del listado (solo en su tipo; ver [punto 3](#3-consultas-filtrado-ordenación-y-paginación)).
@@ -355,7 +361,9 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 | `name` obligatorio, no vacío, máx. 80 caracteres | 400 |
 | `description` máx. 500 caracteres | 400 |
 | **Nombre único** por tipo e idioma, sin distinguir mayúsculas (dos provincias no pueden llamarse "Seville" en `en`; una provincia y una comunidad sí, p. ej. "Madrid") | 409 |
-| Restricciones de base de datos (p. ej. `ineCode` repetido) | 409 |
+| Valor único repetido en un campo extra (p. ej. `ineCode`, `alpha2`, `code`) | 409 |
+| Valor demasiado largo o fuera de rango para su columna (p. ej. `alpha2` de 3 letras, `rate` de 1234,5) | 422 |
+| Otras restricciones de base de datos (p. ej. referencias de otros registros) | 409 |
 | `If-Match` debe ser la versión actual de la entrada | 412 |
 | Los atributos extra deben ser campos del tipo, con un valor convertible a su tipo de dato | 422 |
 | `sortBy` debe ser un campo ordenable del tipo | 422 |
@@ -391,7 +399,7 @@ Cualquier otro error del cliente que Spring ya clasifica como 4xx (p. ej. un par
 | 412 | `If-Match` no coincide con la versión actual: otra persona modificó la entrada |
 | 406 | `Accept` que la API no puede servir (p. ej. `application/xml`); la respuesta de error va siempre en JSON |
 | 415 | `Content-Type` no soportado |
-| 422 | Petición bien formada pero no válida para el tipo: `sortBy` no ordenable, filtro no válido, o un campo extra desconocido o con un valor que no encaja |
+| 422 | Petición bien formada pero no válida para el tipo: `sortBy` no ordenable, filtro no válido, un campo extra desconocido o con un valor que no encaja, o un valor demasiado largo o fuera de rango para su columna |
 | 500 | Error interno |
 | 503 | Sin conexión con la base de datos: el pool está agotado durante más de 3 s o la base de datos no responde. Es temporal; se puede reintentar |
 
@@ -592,8 +600,11 @@ Para cargar los datos de ejemplo, ejecuta [scripts/seed-catalogs.sql](scripts/se
 | `country` | 249 países (ISO 3166-1) |
 | `language` | 184 idiomas (ISO 639-1; sin los alias obsoletos `in`, `iw`, `ji` y `mo`) |
 | `currency` | 154 monedas (las de ISO 4217 que está usando algún país) |
+| `street-type` | 19 tipos de vía con su abreviatura (los seis más usados salen primero, por peso) |
+| `identity-document-type` | DNI, NIE, TIE, CIF, pasaporte y «otro documento», con el formato de su número |
+| `tax-rate` | IVA español: general 21 %, reducido 10 %, superreducido 4 % y exento 0 %, más el 18 % y el 8 % de 2010-2012 (desactivados, con `validTo`) |
 
-Los países, idiomas y monedas se generaron con los datos de localización del JDK (CLDR), así que sus nombres siguen esa fuente; los nombres en español de idiomas y monedas llevan la primera letra en mayúscula.
+Los países, idiomas y monedas se generaron con los datos de localización del JDK (CLDR), así que sus nombres siguen esa fuente; los nombres en español de idiomas y monedas llevan la primera letra en mayúscula. Los tipos de vía, de documento y de IVA están escritos a mano: revisa los tipos de IVA y las fechas antes de usarlos en producción, porque cambian con la ley.
 Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes: Las tablas las crea la app al arrancar (`ddl-auto: update`), así que arráncala una vez antes:
 
 ```bash

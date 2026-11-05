@@ -1,5 +1,7 @@
 -- Carga las 19 comunidades/ciudades autónomas (region) y las 52 provincias (province) de España,
--- más los países (country), idiomas (language) y monedas (currency), con sus traducciones en/es.
+-- más los países (country), idiomas (language), monedas (currency), tipos de vía (street-type),
+-- tipos de documento de identidad (identity-document-type) y tipos de IVA (tax-rate), con sus
+-- traducciones en/es.
 -- En region/province, ine_code es el código oficial del INE; provinces.region_code es el
 -- ine_code de su comunidad.
 --
@@ -2035,5 +2037,108 @@ from (values
 ) as v(code, locale, name)
 join currencies e on e.code = v.code
 where not exists (select 1 from currency_translations t where t.currency_id = e.id and t.locale = v.locale);
+
+-- Tipos de vía (street-type): abreviatura habitual y, en los más usados, un peso para que salgan primero.
+insert into street_types (abbreviation, weight, enabled, created_at, updated_at)
+select v.abbreviation, v.weight, true, now(), now()
+from (values
+    ('C/', 10), ('Avda.', 9), ('Pza.', 8), ('Pº', 7), ('Cno.', 6), ('Ctra.', 5),
+    ('Rda.', 0), ('Trva.', 0), ('Glta.', 0), ('Cjón.', 0), ('Pje.', 0), ('Urb.', 0), ('Bº', 0),
+    ('Blvr.', 0), ('Cta.', 0), ('Rbla.', 0), ('Vía', 0), ('Pque.', 0), ('Pol.', 0)
+) as v(abbreviation, weight)
+where not exists (select 1 from street_types s where s.abbreviation = v.abbreviation);
+
+insert into street_type_translations (street_type_id, locale, name)
+select s.id, v.locale, v.name
+from (values
+    ('C/', 'en', 'Street'), ('C/', 'es', 'Calle'),
+    ('Avda.', 'en', 'Avenue'), ('Avda.', 'es', 'Avenida'),
+    ('Pza.', 'en', 'Square'), ('Pza.', 'es', 'Plaza'),
+    ('Pº', 'en', 'Promenade'), ('Pº', 'es', 'Paseo'),
+    ('Cno.', 'en', 'Path'), ('Cno.', 'es', 'Camino'),
+    ('Ctra.', 'en', 'Road'), ('Ctra.', 'es', 'Carretera'),
+    ('Rda.', 'en', 'Ring road'), ('Rda.', 'es', 'Ronda'),
+    ('Trva.', 'en', 'Cross street'), ('Trva.', 'es', 'Travesía'),
+    ('Glta.', 'en', 'Roundabout'), ('Glta.', 'es', 'Glorieta'),
+    ('Cjón.', 'en', 'Alley'), ('Cjón.', 'es', 'Callejón'),
+    ('Pje.', 'en', 'Passage'), ('Pje.', 'es', 'Pasaje'),
+    ('Urb.', 'en', 'Housing estate'), ('Urb.', 'es', 'Urbanización'),
+    ('Bº', 'en', 'Neighbourhood'), ('Bº', 'es', 'Barrio'),
+    ('Blvr.', 'en', 'Boulevard'), ('Blvr.', 'es', 'Bulevar'),
+    ('Cta.', 'en', 'Slope'), ('Cta.', 'es', 'Cuesta'),
+    ('Rbla.', 'en', 'Rambla'), ('Rbla.', 'es', 'Rambla'),
+    ('Vía', 'en', 'Way'), ('Vía', 'es', 'Vía'),
+    ('Pque.', 'en', 'Park'), ('Pque.', 'es', 'Parque'),
+    ('Pol.', 'en', 'Industrial estate'), ('Pol.', 'es', 'Polígono')
+) as v(abbreviation, locale, name)
+join street_types s on s.abbreviation = v.abbreviation
+where not exists (select 1 from street_type_translations t where t.street_type_id = s.id and t.locale = v.locale);
+
+-- Tipos de documento de identidad (identity-document-type): pattern solo comprueba el formato del número,
+-- no la letra o el dígito de control.
+insert into identity_document_types (code, pattern, weight, enabled, created_at, updated_at)
+select v.code, v.pattern, 0, true, now(), now()
+from (values
+    ('DNI', '^[0-9]{8}[TRWAGMYFPDXBNJZSQVHLCKE]$'),
+    ('NIE', '^[XYZ][0-9]{7}[TRWAGMYFPDXBNJZSQVHLCKE]$'),
+    ('TIE', '^[XYZ][0-9]{7}[TRWAGMYFPDXBNJZSQVHLCKE]$'),
+    ('CIF', '^[ABCDEFGHJNPQRSUVW][0-9]{7}[0-9A-J]$'),
+    ('PAS', '^[A-Z0-9]{6,9}$'),
+    ('OTH', null)
+) as v(code, pattern)
+on conflict (code) do nothing;
+
+insert into identity_document_type_translations (identity_document_type_id, locale, name, description)
+select d.id, v.locale, v.name, v.description
+from (values
+    ('DNI', 'en', 'National identity card (DNI)', '8 digits and a control letter'),
+    ('DNI', 'es', 'Documento Nacional de Identidad (DNI)', '8 dígitos y una letra de control'),
+    ('NIE', 'en', 'Foreigner identification number (NIE)', 'X, Y or Z, 7 digits and a control letter'),
+    ('NIE', 'es', 'Número de Identidad de Extranjero (NIE)', 'X, Y o Z, 7 dígitos y una letra de control'),
+    ('TIE', 'en', 'Foreigner identity card (TIE)', 'It carries the NIE number'),
+    ('TIE', 'es', 'Tarjeta de Identidad de Extranjero (TIE)', 'Lleva el número de NIE'),
+    ('CIF', 'en', 'Tax identification code for companies (CIF)', 'A letter, 7 digits and a control digit or letter'),
+    ('CIF', 'es', 'Código de Identificación Fiscal (CIF)', 'Una letra, 7 dígitos y un dígito o letra de control'),
+    ('PAS', 'en', 'Passport', '6 to 9 letters or digits'),
+    ('PAS', 'es', 'Pasaporte', 'De 6 a 9 letras o dígitos'),
+    ('OTH', 'en', 'Other document', null),
+    ('OTH', 'es', 'Otro documento', null)
+) as v(code, locale, name, description)
+join identity_document_types d on d.code = v.code
+where not exists (select 1 from identity_document_type_translations t where t.identity_document_type_id = d.id and t.locale = v.locale);
+
+-- Tipos de IVA (tax-rate): rate en %, valid_from/valid_to inclusivos. El 4 % y el 0 % no llevan
+-- fecha de inicio (vienen de antes del periodo que se recoge aquí). Los dos de 2010-2012 están
+-- desactivados: ya no se aplican, pero siguen resolviéndose por id.
+insert into tax_rates (rate, valid_from, valid_to, weight, enabled, created_at, updated_at)
+select v.rate, v.valid_from::date, v.valid_to::date, v.weight, v.enabled, now(), now()
+from (values
+    (21.00, '2012-09-01', null, 3, true),
+    (10.00, '2012-09-01', null, 2, true),
+    (4.00, null, null, 1, true),
+    (0.00, null, null, 0, true),
+    (18.00, '2010-07-01', '2012-08-31', 0, false),
+    (8.00, '2010-07-01', '2012-08-31', 0, false)
+) as v(rate, valid_from, valid_to, weight, enabled)
+where not exists (select 1 from tax_rates r where r.rate = v.rate and r.valid_from is not distinct from v.valid_from::date);
+
+insert into tax_rate_translations (tax_rate_id, locale, name, description)
+select r.id, v.locale, v.name, v.description
+from (values
+    (21.00, '2012-09-01', 'en', 'General VAT (21 %)', 'Most goods and services'),
+    (21.00, '2012-09-01', 'es', 'IVA general (21 %)', 'La mayoría de bienes y servicios'),
+    (10.00, '2012-09-01', 'en', 'Reduced VAT (10 %)', 'Hospitality, passenger transport and new housing, among others'),
+    (10.00, '2012-09-01', 'es', 'IVA reducido (10 %)', 'Hostelería, transporte de viajeros y vivienda nueva, entre otros'),
+    (4.00, null, 'en', 'Super-reduced VAT (4 %)', 'Basic foods (bread, milk, fruit, vegetables), books, newspapers and medicines'),
+    (4.00, null, 'es', 'IVA superreducido (4 %)', 'Alimentos básicos (pan, leche, frutas, verduras), libros, periódicos y medicamentos'),
+    (0.00, null, 'en', 'VAT exempt (0 %)', 'Exempt operations, such as healthcare and education'),
+    (0.00, null, 'es', 'IVA exento (0 %)', 'Operaciones exentas, como la sanidad y la educación'),
+    (18.00, '2010-07-01', 'en', 'General VAT (18 %, until 2012)', 'Replaced by 21 % on 1 September 2012'),
+    (18.00, '2010-07-01', 'es', 'IVA general (18 %, hasta 2012)', 'Sustituido por el 21 % el 1 de septiembre de 2012'),
+    (8.00, '2010-07-01', 'en', 'Reduced VAT (8 %, until 2012)', 'Replaced by 10 % on 1 September 2012'),
+    (8.00, '2010-07-01', 'es', 'IVA reducido (8 %, hasta 2012)', 'Sustituido por el 10 % el 1 de septiembre de 2012')
+) as v(rate, valid_from, locale, name, description)
+join tax_rates r on r.rate = v.rate and r.valid_from is not distinct from v.valid_from::date
+where not exists (select 1 from tax_rate_translations t where t.tax_rate_id = r.id and t.locale = v.locale);
 
 commit;

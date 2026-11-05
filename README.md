@@ -326,6 +326,7 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 ```
 
 - El patch es **atómico**: si una operación falla, no se aplica ninguna.
+- Hay **topes** frente a patches hostiles (un `copy` encadenado puede duplicar el documento en cada operación): como máximo **50 operaciones**, y el documento no puede pasar de **10.000 valores** tras ninguna de ellas. Si se superan → 400.
 - `id`, `type`, `createdAt`, `updatedAt` y `version` no forman parte del documento y no se pueden modificar: `replace`/`remove` sobre ellos falla con 400, y un `add` se ignora.
 - El resultado se valida con las mismas reglas que POST/PUT (p. ej. quitar `/translations/en` → 400; añadir un atributo que no es campo del tipo → 422).
 
@@ -343,7 +344,7 @@ curl -X PATCH http://localhost:8080/admin/api/catalogs/province/41 -u admin:admi
 
 | Regla | Respuesta |
 |-------|-----------|
-| `translations` presente y no vacío | 400 |
+| `translations` presente y no vacío, sin valores `null` | 400 |
 | `translations` incluye el idioma por defecto (`en`) y solo idiomas soportados (`en`, `es`) | 400 |
 | `name` obligatorio, no vacío, máx. 80 caracteres | 400 |
 | `description` máx. 500 caracteres | 400 |
@@ -371,6 +372,8 @@ Todas las respuestas de error tienen el mismo formato, con `message` localizado 
 
 `errors` solo aparece con el detalle de los campos inválidos (validaciones).
 
+Cualquier otro error del cliente que Spring ya clasifica como 4xx (p. ej. un parámetro obligatorio ausente) conserva su status, con el mensaje genérico «La petición no se puede procesar»; solo lo imprevisto es un 500, y nunca expone detalles internos. Los mensajes de error que se escriben en el log pasan antes por una limpieza (sin saltos de línea ni caracteres de control, máximo 500 caracteres) para que una petición no pueda falsificar líneas de log.
+
 | Status | Significado |
 |--------|-------------|
 | 400 | Petición mal formada: JSON inválido, validación fallida, tipo de catálogo desconocido, parámetro inválido, JSON Patch inválido |
@@ -380,6 +383,7 @@ Todas las respuestas de error tienen el mismo formato, con `message` localizado 
 | 405 | Método no permitido (p. ej. `POST` sobre la API de consulta) |
 | 409 | Nombre duplicado, `test` de JSON Patch fallido, violación de integridad en base de datos, u otra petición modificó la entrada en el mismo instante |
 | 412 | `If-Match` no coincide con la versión actual: otra persona modificó la entrada |
+| 406 | `Accept` que la API no puede servir (p. ej. `application/xml`); la respuesta de error va siempre en JSON |
 | 415 | `Content-Type` no soportado |
 | 422 | Petición bien formada pero no válida para el tipo: `sortBy` no ordenable, filtro no válido, o un campo extra desconocido o con un valor que no encaja |
 | 500 | Error interno |
@@ -408,7 +412,7 @@ Los listados se vacían enteros porque cualquier cambio (nombre, peso, `enabled`
 
 **Posible mejora futura**: cachear también los listados **paginados sin `filter`** en `catalogLists:<type>`. Cambian exactamente cuando cambian los listados completos, así que la invalidación actual ya los cubriría; la clave añadiría la página y el tamaño (un número acotado de entradas: con 52 provincias y páginas de 20 son 3 páginas por idioma y orden) y se ahorrarían la consulta de datos y la del total. Bastaría el mismo `@Cacheable` con la misma condición en `CatalogQueryService#findPage`. Hoy no se hace porque la ganancia es pequeña: los listados paginados los usa sobre todo el backoffice, con poco tráfico, y los catálogos son pequeños. Merecería la pena si algún consumidor de la API de consulta empieza a paginar (p. ej. un listado con scroll infinito).
 
-> **Estado actual:** en `application.yml` la caché está **desactivada** (`app.catalog.cache.enabled: false`). Para activarla basta con poner `enabled: true`; la configuración propia de `region` y `province` (tamaño y caducidad de 12 h) ya está declarada.
+> **Estado actual:** en `application.yml` la caché está **activada** (`app.catalog.cache.enabled: true`), con la configuración propia de `region` y `province` (tamaño y caducidad de 12 h). Para desactivarla basta con poner `enabled: false`.
 
 La configuración no depende de la librería de caché (hoy Caffeine; cambiarla es añadir otra implementación de `CatalogCacheProvider`, en `infrastructure/cache/spi`):
 

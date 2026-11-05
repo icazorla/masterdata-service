@@ -87,7 +87,7 @@ app:
   catalog:
     cache:
       provider: caffeine
-      enabled: false
+      enabled: true
       maximum-size: 1000
       expire-after-write: 10m
       expire-after-access: 10m
